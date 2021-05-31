@@ -37,6 +37,13 @@ func scan(s *scanner.Scanner) (*object, error) {
 		case 'n':
 			return decodeNull(s)
 
+		// booleans
+		case 't':
+			return decodeTrueBool(s)
+
+		case 'f':
+			return decodeFalseBool(s)
+
 		case scanner.EOF:
 			isEOF = true
 			continue
