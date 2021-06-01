@@ -13,6 +13,7 @@ const (
 	float
 	obj
 	array
+	comment
 )
 
 type object struct {
