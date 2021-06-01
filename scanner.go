@@ -52,7 +52,6 @@ func scan(s *scanner.Scanner) (*object, error) {
 		// return error if character is neither of the two
 		default:
 			if !isCharWhiteSpace(char) && !isCharLineTerm(char) {
-				s.Next()
 				return nil, errInvalidChar(s.Pos().Line, s.Pos().Column, char, "beginning of value")
 			}
 		}
