@@ -6,7 +6,9 @@ const (
 	null = iota
 	undefined
 	boolean
-	str
+	backTickstr
+	doubleQuoteStr
+	singleQuoteStr
 	integer
 	float
 	obj
