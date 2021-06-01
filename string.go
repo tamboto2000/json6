@@ -1,7 +1,6 @@
 package json6
 
 import (
-	"fmt"
 	"strconv"
 	"text/scanner"
 )
@@ -198,6 +197,5 @@ func decodeString(begin rune, s *scanner.Scanner) (*object, error) {
 	}
 
 	obj.str = string(rns)
-	fmt.Println("string:", obj.str)
 	return obj, nil
 }
