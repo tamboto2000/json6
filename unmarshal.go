@@ -10,9 +10,5 @@ func UnmarshalBytes(src []byte, v interface{}) error {
 }
 
 func unmarshal(obj *object, v interface{}) error {
-	if obj.kind == null {
-		return nil
-	}
-
 	return nil
 }
