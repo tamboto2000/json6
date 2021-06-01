@@ -23,3 +23,18 @@ func isCharPunct(char rune) bool {
 
 	return false
 }
+
+func isCharValidHex(char rune) bool {
+	switch char {
+	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		return true
+
+	case 'a', 'b', 'c', 'd', 'e', 'f':
+		return true
+
+	case 'A', 'B', 'C', 'D', 'E', 'F':
+		return true
+	}
+
+	return false
+}
