@@ -48,6 +48,10 @@ func scan(s *scanner.Scanner) (*object, error) {
 		case 'f':
 			return decodeFalseBool(s)
 
+		// string
+		case '`', '"', '\'':
+			return decodeString(char, s)
+
 		case scanner.EOF:
 			isEOF = true
 			continue
