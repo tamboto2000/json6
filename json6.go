@@ -1,5 +1,5 @@
 // Package json6 is a JSON6 implementation.
-// Refer to here 
+// Refer to https://github.com/d3x0r/JSON6 for more info
 package json6
 
 const (
@@ -16,11 +16,11 @@ const (
 )
 
 type object struct {
-	kind uint
+	kind    uint
 	boolean bool
-	str string
+	str     string
 	integer int64
-	float float64
-	obj map[string]*object
-	array []*object
+	float   float64
+	obj     map[string]*object
+	array   []*object
 }
