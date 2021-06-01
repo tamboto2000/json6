@@ -6,9 +6,16 @@ func isCharWhiteSpace(char rune) bool {
 	return unicode.In(char, unicode.White_Space, unicode.Zs)
 }
 
+const (
+	lineFeed           = '\u000a'
+	carriageReturn     = '\u000d'
+	lineSeparator      = '\u2028'
+	paragraphSeparator = '\u2029'
+)
+
 func isCharLineTerm(char rune) bool {
 	switch char {
-	case '\u000a', '\u000d', '\u2028', '\u2029':
+	case lineFeed, carriageReturn, lineSeparator, paragraphSeparator:
 		return true
 	}
 
