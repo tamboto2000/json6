@@ -33,6 +33,10 @@ func scan(s *scanner.Scanner) (*object, error) {
 	for !isEOF {
 		char := s.Next()
 		switch char {
+		// undefined
+		case 'u':
+			return decodeUndefined(s)
+
 		// null
 		case 'n':
 			return decodeNull(s)
