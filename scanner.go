@@ -52,6 +52,10 @@ func scan(s *scanner.Scanner) (*object, error) {
 		case '`', '"', '\'':
 			return decodeString(char, s)
 
+			// comment
+		case '/':
+			return decodeComment(s)
+
 		case scanner.EOF:
 			isEOF = true
 			continue
