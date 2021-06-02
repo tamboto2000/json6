@@ -24,4 +24,5 @@ type object struct {
 	float   float64
 	obj     map[string]*object
 	array   []*object
+	rns     []rune
 }
