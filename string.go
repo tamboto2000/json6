@@ -42,6 +42,10 @@ func decodeString(begin rune, s *scanner.Scanner) (*object, error) {
 				rns = append(rns, '\\')
 				continue
 
+			case 'a':
+				rns = append(rns, '\a')
+				continue
+
 			case 'b':
 				rns = append(rns, '\b')
 				continue
