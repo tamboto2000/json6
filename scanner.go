@@ -67,6 +67,10 @@ func scan(s *scanner.Scanner) (*object, error) {
 		case '[':
 			return decodeArray(s)
 
+		// object
+		case '{':
+			return decodeObject(s)
+
 		case scanner.EOF:
 			isEOF = true
 			continue
