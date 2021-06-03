@@ -76,7 +76,7 @@ func decodeString(begin rune, s *scanner.Scanner) (*object, error) {
 				for i := 0; i < 2; i++ {
 					char = s.Next()
 					if !isCharValidHex(char) {
-						return nil, errInvalidChar(s.Pos().Line, s.Pos().Column, char, "valid hexadecimal number")
+						return nil, errInvalidChar(s.Pos().Line, s.Pos().Column, char, "hexadecimal number")
 					}
 
 					hexChars[i] = char
