@@ -18,6 +18,7 @@ const (
 
 type object struct {
 	kind    uint
+	numSign rune
 	boolean bool
 	str     string
 	integer int64
