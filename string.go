@@ -147,6 +147,8 @@ func decodeString(begin rune, s *scanner.Scanner) (*object, error) {
 					continue
 				}
 
+				continue
+
 			// line terminators
 			case '\r':
 				char = s.Next()
