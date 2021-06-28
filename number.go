@@ -48,6 +48,13 @@ MAIN_SWITCH:
 	// plus sign
 	case '+':
 		obj.numSign = '+'
+		// check if after plus sign is valid char for number
+		char := s.Peek()
+		if !unicode.IsDigit(char) {
+			s.Next()
+			return nil, errInvalidChar(s.Pos().Line, s.Pos().Column, char, "numeric digit")
+		}
+
 		begin = s.Next()
 		goto MAIN_SWITCH
 
