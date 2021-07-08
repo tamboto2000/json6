@@ -39,12 +39,12 @@ func (dec *decoder) scan() error {
 		// case 'n':
 		// 	return decodeNull(s)
 
-		// // booleans
-		// case 't':
-		// 	return decodeTrueBool(s)
+		// booleans
+		case 't':
+			return dec.decodeTrueBool()
 
-		// case 'f':
-		// 	return decodeFalseBool(s)
+		case 'f':
+			return dec.decodeFalseBool()
 
 		// string
 		case '`', '"', '\'':
