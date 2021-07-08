@@ -35,9 +35,9 @@ func (dec *decoder) scan() error {
 		// case 'u':
 		// 	return decodeUndefined(s)
 
-		// // null
-		// case 'n':
-		// 	return decodeNull(s)
+		// null
+		case 'n':
+			return dec.decodeNull()
 
 		// booleans
 		case 't':
