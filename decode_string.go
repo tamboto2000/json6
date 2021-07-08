@@ -1,33 +1,27 @@
 package json6
 
 import (
+	"reflect"
 	"strconv"
 	"text/scanner"
 )
 
-func decodeString(begin rune, s *scanner.Scanner) (*object, error) {
-	obj := new(object)
-	rns := make([]rune, 0)
-
-	switch begin {
-	case '`':
-		obj.kind = backTickstr
-
-	case '"':
-		obj.kind = doubleQuoteStr
-
-	case '\'':
-		obj.kind = singleQuoteStr
+func (dec *decoder) decodeString(begin rune) error {
+	if dec.val.Kind() != reflect.String && dec.val.Kind() != reflect.Interface {
+		return errMissMatchVal("string", dec.val.Type().Name(), dec.val.Type().String())
 	}
+
+	rns := make([]rune, 0)
+	charBegin := begin
 
 	isEndOfStr := false
 	for !isEndOfStr {
-		char := s.Next()
+		char := dec.s.Next()
 
 		switch char {
 		// possible escaped character
 		case '\\':
-			char = s.Next()
+			char = dec.s.Next()
 
 			switch char {
 			case '\'':
@@ -78,18 +72,18 @@ func decodeString(begin rune, s *scanner.Scanner) (*object, error) {
 			case 'x':
 				hexChars := make([]rune, 2)
 				for i := 0; i < 2; i++ {
-					char = s.Next()
+					char = dec.s.Next()
 					if !isCharValidHex(char) {
-						return nil, errInvalidChar(s.Pos().Line, s.Pos().Column, char, "hexadecimal number")
+						return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "hexadecimal number")
 					}
 
 					hexChars[i] = char
 				}
 
 				// calculate the hexadecimal to decimal
-				dec, err := strconv.ParseInt(string(hexChars), 16, 64)
+				dec, err := strconv.ParseInt(string(hexChars), 16, 32)
 				if err != nil {
-					return nil, err
+					return err
 				}
 
 				rns = append(rns, rune(dec))
@@ -97,7 +91,7 @@ func decodeString(begin rune, s *scanner.Scanner) (*object, error) {
 
 			// unicode
 			case 'u':
-				char = s.Next()
+				char = dec.s.Next()
 
 				// if char is valid hexadecimal, then the unicode must contains 4 hexadecimal digit,
 				// otherwise error will returned
@@ -105,42 +99,42 @@ func decodeString(begin rune, s *scanner.Scanner) (*object, error) {
 					hexChars := make([]rune, 4)
 					hexChars[0] = char
 					for i := 0; i < 3; i++ {
-						char = s.Next()
+						char = dec.s.Next()
 						if !isCharValidHex(char) {
-							return nil, errInvalidChar(s.Pos().Line, s.Pos().Column, char, "hexadecimal number")
+							return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "hexadecimal number")
 						}
 
 						hexChars[i+1] = char
 					}
 
 					// calculate the hexadecimal to decimal
-					dec, err := strconv.ParseInt(string(hexChars), 16, 64)
+					dec, err := strconv.ParseInt(string(hexChars), 16, 32)
 					if err != nil {
-						return nil, err
+						return err
 					}
 
 					rns = append(rns, rune(dec))
 					continue
 				} else if char == '{' {
-					// if char is openbracket, then the hexadecimal digit can be more than 4
+					// if char is openbracket, then the hexadecimal digit can be more or less than 4
 					hexChars := make([]rune, 0)
 					for {
-						char = s.Next()
+						char = dec.s.Next()
 						if !isCharValidHex(char) {
 							if char == '}' {
 								break
 							}
 
-							return nil, errInvalidChar(s.Pos().Line, s.Pos().Column, char, "hexadecimal number or '}'")
+							return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "hexadecimal number or '}'")
 						}
 
 						hexChars = append(hexChars, char)
 					}
 
 					// calculate the hexadecimal to decimal
-					dec, err := strconv.ParseInt(string(hexChars), 16, 64)
+					dec, err := strconv.ParseInt(string(hexChars), 16, 32)
 					if err != nil {
-						return nil, err
+						return err
 					}
 
 					rns = append(rns, rune(dec))
@@ -151,7 +145,7 @@ func decodeString(begin rune, s *scanner.Scanner) (*object, error) {
 
 			// line terminators
 			case '\r':
-				char = s.Next()
+				char = dec.s.Next()
 				if char == '\n' {
 					continue
 				}
@@ -169,7 +163,7 @@ func decodeString(begin rune, s *scanner.Scanner) (*object, error) {
 
 		// end of string
 		case '`':
-			if obj.kind == backTickstr {
+			if charBegin == '`' {
 				isEndOfStr = true
 				continue
 			}
@@ -178,7 +172,7 @@ func decodeString(begin rune, s *scanner.Scanner) (*object, error) {
 			continue
 
 		case '\'':
-			if obj.kind == singleQuoteStr {
+			if charBegin == '\'' {
 				isEndOfStr = true
 				continue
 			}
@@ -187,7 +181,7 @@ func decodeString(begin rune, s *scanner.Scanner) (*object, error) {
 			continue
 
 		case '"':
-			if obj.kind == doubleQuoteStr {
+			if charBegin == '"' {
 				isEndOfStr = true
 				continue
 			}
@@ -196,12 +190,17 @@ func decodeString(begin rune, s *scanner.Scanner) (*object, error) {
 			continue
 
 		case scanner.EOF:
-			return nil, errUnexpectedEOF(s.Pos().Line, s.Pos().Column)
+			return errUnexpectedEOF(dec.s.Pos().Line, dec.s.Pos().Column)
 		}
 
 		rns = append(rns, char)
 	}
 
-	obj.str = string(rns)
-	return obj, nil
+	if dec.val.Kind() == reflect.Interface {
+		dec.val.Set(reflect.ValueOf(string(rns)))
+	} else {
+		dec.val.SetString(string(rns))
+	}
+
+	return nil
 }

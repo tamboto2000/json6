@@ -16,14 +16,14 @@ const (
 	comment
 )
 
-type object struct {
-	kind    uint
-	numSign rune
-	boolean bool
-	str     string
-	integer int64
-	float   float64
-	obj     map[string]*object
-	array   []*object
-	rns     []rune
-}
+// type object struct {
+// 	kind    uint
+// 	numSign rune
+// 	boolean bool
+// 	str     string
+// 	integer int64
+// 	float   float64
+// 	obj     map[string]*object
+// 	array   []*object
+// 	rns     []rune
+// }
