@@ -31,9 +31,9 @@ func (dec *decoder) scan() error {
 	for !isEOF {
 		char := dec.s.Next()
 		switch char {
-		// // undefined
-		// case 'u':
-		// 	return decodeUndefined(s)
+		// undefined
+		case 'u':
+			return dec.decodeUndefined()
 
 		// null
 		case 'n':
