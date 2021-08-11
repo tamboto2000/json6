@@ -7,10 +7,6 @@ import (
 )
 
 func (dec *decoder) decodeString(begin rune) error {
-	if dec.val.Kind() != reflect.String && dec.val.Kind() != reflect.Interface {
-		return errMissMatchVal("string", dec.val.Type().Name(), dec.val.Type().String())
-	}
-
 	rns := make([]rune, 0)
 	charBegin := begin
 
@@ -198,8 +194,10 @@ func (dec *decoder) decodeString(begin rune) error {
 
 	if dec.val.Kind() == reflect.Interface {
 		dec.val.Set(reflect.ValueOf(string(rns)))
-	} else {
+	} else if dec.val.Kind() == reflect.String {
 		dec.val.SetString(string(rns))
+	} else {
+		return errMissMatchVal("'"+string(rns)+"' (string)", dec.val.Type().Name(), dec.val.Type().String())
 	}
 
 	return nil
