@@ -29,8 +29,8 @@ type decoder struct {
 }
 
 func (dec *decoder) scan() error {
-	isEOF := false
-	for !isEOF {
+LOOP:
+	for {
 		char := dec.s.Next()
 		switch char {
 		// undefined
@@ -72,8 +72,7 @@ func (dec *decoder) scan() error {
 		// 	return decodeObject(s)
 
 		case scanner.EOF:
-			isEOF = true
-			continue
+			break LOOP
 
 		// if no any beginning of value is detected, check for whitespace and line terminator,
 		// return error if character is neither of the two
