@@ -22,8 +22,10 @@ func newDecoder(val reflect.Value, s *scanner.Scanner) *decoder {
 }
 
 type decoder struct {
-	val reflect.Value
-	s   *scanner.Scanner
+	val     reflect.Value
+	s       *scanner.Scanner
+	numSign rune // for numeric, '-' and '+'
+	tokens  []rune
 }
 
 func (dec *decoder) scan() error {
@@ -54,12 +56,12 @@ func (dec *decoder) scan() error {
 		// case '/':
 		// 	return decodeComment(s)
 
-		// // number
-		// case '_', '-', '+', 'I', 'N', '.':
-		// 	return decodeNumber(char, s)
+		// number
+		case '-', '+', 'I', 'N', '.':
+			return dec.decodeNumber(char)
 
-		// case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		// 	return decodeNumber(char, s)
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			return dec.decodeNumber(char)
 
 		// // array
 		// case '[':
@@ -116,10 +118,7 @@ func valToReflect(v interface{}) (reflect.Value, error) {
 }
 
 // indirect walks down v allocating pointers as needed,
-// until it gets to a non-pointer.
-// If it encounters an Unmarshaler, indirect stops and returns that.
-// If decodingNull is true, indirect stops at the first settable pointer so it
-// can be set to nil.
+// until it gets to a non-pointer
 func indirect(v reflect.Value, decodingNull bool) reflect.Value {
 	// Issue #24153 indicates that it is generally not a guaranteed property
 	// that you may round-trip a reflect.Value by calling Value.Addr().Elem()
@@ -142,6 +141,7 @@ func indirect(v reflect.Value, decodingNull bool) reflect.Value {
 		haveAddr = true
 		v = v.Addr()
 	}
+
 	for {
 		// Load value from interface, but only if the result will be
 		// usefully addressable.
