@@ -11,10 +11,6 @@ var (
 )
 
 func (dec *decoder) decodeTrueBool() error {
-	if dec.val.Kind() != reflect.Bool && dec.val.Kind() != reflect.Interface {
-		return errMissMatchVal("boolean", dec.val.Type().Name(), dec.val.Type().String())
-	}
-
 	for _, c := range trueBoolChars {
 		char := dec.s.Next()
 		if char != c {
@@ -25,6 +21,10 @@ func (dec *decoder) decodeTrueBool() error {
 	// check last char
 	char := dec.s.Peek()
 	if isCharWhiteSpace(char) || isCharLineTerm(char) || isCharPunct(char) || char == scanner.EOF {
+		if dec.val.Kind() != reflect.Bool && dec.val.Kind() != reflect.Interface {
+			return errMissMatchVal("true (boolean)", dec.val.Type().Name(), dec.val.Type().String())
+		}
+
 		if dec.val.Kind() == reflect.Interface {
 			dec.val.Set(reflect.ValueOf(true))
 		} else {
@@ -40,10 +40,6 @@ func (dec *decoder) decodeTrueBool() error {
 }
 
 func (dec *decoder) decodeFalseBool() error {
-	if dec.val.Kind() != reflect.Bool && dec.val.Kind() != reflect.Interface {
-		return errMissMatchVal("boolean", dec.val.Type().Name(), dec.val.Type().String())
-	}
-
 	for _, c := range falseBoolChars {
 		char := dec.s.Next()
 		if char != c {
@@ -54,6 +50,10 @@ func (dec *decoder) decodeFalseBool() error {
 	// check last char
 	char := dec.s.Peek()
 	if isCharWhiteSpace(char) || isCharLineTerm(char) || isCharPunct(char) || char == scanner.EOF {
+		if dec.val.Kind() != reflect.Bool && dec.val.Kind() != reflect.Interface {
+			return errMissMatchVal("false (boolean)", dec.val.Type().Name(), dec.val.Type().String())
+		}
+
 		if dec.val.Kind() == reflect.Interface {
 			dec.val.Set(reflect.ValueOf(false))
 		} else {
