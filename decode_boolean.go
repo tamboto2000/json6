@@ -21,14 +21,12 @@ func (dec *decoder) decodeTrueBool() error {
 	// check last char
 	char := dec.s.Peek()
 	if isCharWhiteSpace(char) || isCharLineTerm(char) || isCharPunct(char) || char == scanner.EOF {
-		if dec.val.Kind() != reflect.Bool && dec.val.Kind() != reflect.Interface {
-			return errMissMatchVal("true (boolean)", dec.val.Type().Name(), dec.val.Type().String())
-		}
-
 		if dec.val.Kind() == reflect.Interface {
 			dec.val.Set(reflect.ValueOf(true))
-		} else {
+		} else if dec.val.Kind() == reflect.Bool {
 			dec.val.SetBool(true)
+		} else {
+			return errMissMatchVal("true (boolean)", dec.val.Type().Name(), dec.val.Type().String())
 		}
 
 		return nil
@@ -56,8 +54,10 @@ func (dec *decoder) decodeFalseBool() error {
 
 		if dec.val.Kind() == reflect.Interface {
 			dec.val.Set(reflect.ValueOf(false))
-		} else {
+		} else if dec.val.Kind() == reflect.Bool {
 			dec.val.SetBool(false)
+		} else {
+			return errMissMatchVal("false (boolean)", dec.val.Type().Name(), dec.val.Type().String())
 		}
 
 		return nil
