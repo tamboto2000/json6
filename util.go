@@ -1,6 +1,9 @@
 package json6
 
-import "unicode"
+import (
+	"text/scanner"
+	"unicode"
+)
 
 func isCharWhiteSpace(char rune) bool {
 	return unicode.In(char, unicode.White_Space, unicode.Zs)
@@ -49,6 +52,14 @@ func isCharValidHex(char rune) bool {
 func isCharValidOctal(char rune) bool {
 	switch char {
 	case '0', '1', '2', '3', '4', '5', '6', '7':
+		return true
+	}
+
+	return false
+}
+
+func isCharEndOfValue(char rune) bool {
+	if isCharWhiteSpace(char) || isCharLineTerm(char) || isCharPunct(char) || char == scanner.EOF {
 		return true
 	}
 
