@@ -52,9 +52,13 @@ LOOP:
 		case '`', '"', '\'':
 			return dec.decodeString(char)
 
-		// // comment
-		// case '/':
-		// 	return decodeComment(s)
+		// comment
+		case '/':
+			if err := dec.decodeComment(); err != nil {
+				return err
+			}
+
+			continue
 
 		// number
 		case '-', '+', 'I', 'N', '.':
