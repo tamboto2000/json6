@@ -32,6 +32,7 @@ func (dec *decoder) scan() error {
 LOOP:
 	for {
 		char := dec.s.Next()
+
 		switch char {
 		// undefined
 		case 'u':
@@ -67,9 +68,9 @@ LOOP:
 		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			return dec.decodeNumber(char)
 
-		// // array
-		// case '[':
-		// 	return decodeArray(s)
+		// array
+		case '[':
+			return dec.decodeArray()
 
 		// // object
 		// case '{':
@@ -87,10 +88,6 @@ LOOP:
 		}
 	}
 
-	return nil
-}
-
-func (dec *decoder) assignVal(data reflect.Value) error {
 	return nil
 }
 
