@@ -49,15 +49,6 @@ func isCharValidHex(char rune) bool {
 	return false
 }
 
-func isCharValidOctal(char rune) bool {
-	switch char {
-	case '0', '1', '2', '3', '4', '5', '6', '7':
-		return true
-	}
-
-	return false
-}
-
 func isCharEndOfValue(char rune) bool {
 	if isCharWhiteSpace(char) || isCharLineTerm(char) || isCharPunct(char) || char == scanner.EOF {
 		return true
