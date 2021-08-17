@@ -1,7 +1,7 @@
 package json6
 
-import (
-	"text/scanner"
+import (	
+	"reflect"
 	"unicode"
 )
 
@@ -10,8 +10,8 @@ func isCharWhiteSpace(char rune) bool {
 }
 
 const (
-	lineFeed           = '\u000a'
-	carriageReturn     = '\u000d'
+	lineFeed           = '\n'
+	carriageReturn     = '\r'
 	lineSeparator      = '\u2028'
 	paragraphSeparator = '\u2029'
 )
@@ -49,9 +49,123 @@ func isCharValidHex(char rune) bool {
 	return false
 }
 
-func isCharEndOfValue(char rune) bool {
-	if isCharWhiteSpace(char) || isCharLineTerm(char) || isCharPunct(char) || char == scanner.EOF {
+func setVal(target, val reflect.Value) bool {
+	switch target.Kind() {
+	case reflect.Interface:
+		target.Set(val)
 		return true
+
+	case reflect.Bool:
+		if val.Kind() != reflect.Bool {
+			return false
+		}
+
+		target.Set(val)
+		return true
+
+	case reflect.String:
+		if val.Kind() != reflect.String {
+			return false
+		}
+
+		target.Set(val)
+		return true
+
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:		
+		switch val.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			target.Set(val.Convert(target.Type()))
+			return true
+
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			target.Set(val.Convert(target.Type()))
+			return true
+
+		default:			
+			return false
+		}
+
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		switch val.Kind() {
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			if val.Int() < 0 {
+				return false
+			}
+
+			target.Set(val.Convert(target.Type()))
+			return true
+
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			target.Set(val.Convert(target.Type()))
+			return true
+
+		default:
+			return false
+		}
+
+	case reflect.Float32, reflect.Float64:
+		switch val.Kind() {
+		case reflect.Float32, reflect.Float64:
+			target.Set(val.Convert(target.Type()))
+			return true
+
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			target.Set(val.Convert(target.Type()))
+			return true
+
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			target.Set(val.Convert(target.Type()))
+			return true
+
+		default:
+			return false
+		}
+
+	case reflect.Slice:		
+		switch val.Kind() {
+		case reflect.Slice, reflect.Array:			
+			arrLen := val.Len()
+			slice := reflect.MakeSlice(target.Type(), arrLen, arrLen)
+			target.Set(slice)
+			for i := 0; i < arrLen; i++ {
+				valElem := val.Index(i)
+				if valElem.Kind() == reflect.Interface {
+					valElem = valElem.Elem()
+				}
+
+				if !setVal(target.Index(i), valElem) {
+					return false
+				}
+			}
+
+			return true
+
+		default:
+			return false
+		}
+
+	case reflect.Array:
+		switch val.Kind() {
+		case reflect.Slice, reflect.Array:
+			arrLen := val.Len()
+			slice := reflect.MakeSlice(target.Type(), arrLen, arrLen)
+			target.Set(slice)
+			for i := 0; i < arrLen; i++ {
+				valElem := val.Index(i)
+				if valElem.Kind() == reflect.Interface {
+					valElem = valElem.Elem()
+				}
+
+				if !setVal(target.Index(i), valElem) {
+					return false
+				}
+			}
+
+			return true
+
+		default:
+			return false
+		}
 	}
 
 	return false

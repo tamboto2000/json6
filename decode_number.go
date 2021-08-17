@@ -28,7 +28,7 @@ MAIN_SWITCH:
 				dec.tokens = append(dec.tokens, char)
 			} else {
 				if !isCharValidNumAfterSign(char) {
-					return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "digits (0-9), '.', 'N', or 'I'")
+					return dec.errInvalidChar(char, "digits (0-9), '.', 'N', or 'I'")
 				}
 
 				begin = char
@@ -43,7 +43,7 @@ MAIN_SWITCH:
 		dec.tokens = append(dec.tokens, '+')
 		char := dec.s.Next()
 		if !isCharValidNumAfterSign(char) {
-			return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "digits (0-9), '.', 'N', or 'I'")
+			return dec.errInvalidChar(char, "digits (0-9), '.', 'N', or 'I'")
 		}
 
 		begin = char
@@ -133,8 +133,8 @@ LOOP:
 			continue
 
 		default:
-			if !isCharEndOfValue(char) {
-				return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "'_', '.', 'e', 'E', or digits (0-9)")
+			if err := dec.isCharEndOfValue(char); err != nil {
+				return err
 			}
 
 			break LOOP
@@ -176,37 +176,35 @@ var infChars = []rune{'n', 'f', 'i', 'n', 'i', 't', 'y'}
 func (dec *decoder) decodeInfinity() error {
 	for _, c := range infChars {
 		if char := dec.s.Next(); char != c {
-			return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, string(c))
+			return dec.errInvalidChar(char, string(c))
 		}
 	}
 
 	// check last char
-	char := dec.s.Peek()
-	if isCharEndOfValue(char) {
-		var sign int
-		if dec.numSign == '-' {
-			sign = -1
-		} else {
-			sign = +1
-		}
-
-		switch dec.val.Kind() {
-		case reflect.Interface:
-			dec.val.Set(reflect.ValueOf(math.Inf(sign)))
-
-		case reflect.Float64:
-			dec.val.SetFloat(math.Inf(sign))
-
-		default:
-			return errMissMatchVal("Infinity (float64)", dec.val.Type().Name(), dec.val.Type().String())
-		}
-
-		return nil
+	char := dec.s.Next()
+	if err := dec.isCharEndOfValue(char); err != nil {
+		return err
 	}
 
-	// advance reader if last char is invalid value terminator and return error
-	dec.s.Next()
-	return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "whitespace, punctuator, line terminator, or EOF")
+	var sign int
+	if dec.numSign == '-' {
+		sign = -1
+	} else {
+		sign = +1
+	}
+
+	switch dec.val.Kind() {
+	case reflect.Interface:
+		dec.val.Set(reflect.ValueOf(math.Inf(sign)))
+
+	case reflect.Float64:
+		dec.val.SetFloat(math.Inf(sign))
+
+	default:
+		return errMissMatchVal("Infinity (float64)", dec.val.Type().Name(), dec.val.Type().String())
+	}
+
+	return nil
 }
 
 var nanChars = []rune{'a', 'N'}
@@ -214,30 +212,28 @@ var nanChars = []rune{'a', 'N'}
 func (dec *decoder) decodeNaN() error {
 	for _, c := range nanChars {
 		if char := dec.s.Next(); char != c {
-			return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, string(c))
+			return dec.errInvalidChar(char, string(c))
 		}
 	}
 
 	// check last char
-	char := dec.s.Peek()
-	if isCharEndOfValue(char) {
-		switch dec.val.Kind() {
-		case reflect.Interface:
-			dec.val.Set(reflect.ValueOf(math.NaN()))
-
-		case reflect.Float64:
-			dec.val.SetFloat(math.NaN())
-
-		default:
-			return errMissMatchVal("NaN (float64)", dec.val.Type().Name(), dec.val.Type().String())
-		}
-
-		return nil
+	char := dec.s.Next()
+	if err := dec.isCharEndOfValue(char); err != nil {
+		return err
 	}
 
-	// advance reader if last char is invalid value terminator and return error
-	dec.s.Next()
-	return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "whitespace, punctuator, line terminator, or EOF")
+	switch dec.val.Kind() {
+	case reflect.Interface:
+		dec.val.Set(reflect.ValueOf(math.NaN()))
+
+	case reflect.Float64:
+		dec.val.SetFloat(math.NaN())
+
+	default:
+		return errMissMatchVal("NaN (float64)", dec.val.Type().Name(), dec.val.Type().String())
+	}
+
+	return nil
 }
 
 func (dec *decoder) decodeExponent() error {
@@ -247,7 +243,7 @@ func (dec *decoder) decodeExponent() error {
 		dec.tokens = append(dec.tokens, char)
 		char = dec.s.Next()
 		if !unicode.IsNumber(char) {
-			return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "digits (0-9)")
+			return dec.errInvalidChar(char, "digits (0-9)")
 		}
 
 		dec.tokens = append(dec.tokens, char)
@@ -256,7 +252,7 @@ func (dec *decoder) decodeExponent() error {
 		dec.tokens = append(dec.tokens, char)
 
 	default:
-		return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "'-', '+', or digits (0-9)")
+		return dec.errInvalidChar(char, "'-', '+', or digits (0-9)")
 	}
 
 LOOP:
@@ -280,8 +276,8 @@ LOOP:
 			continue
 
 		default:
-			if !isCharEndOfValue(char) {
-				return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "'_', white space, line terminator, punctuation, EOF, or digits (0-9)")
+			if err := dec.isCharEndOfValue(char); err != nil {
+				return err
 			}
 
 			break LOOP
@@ -341,8 +337,8 @@ LOOP:
 			continue
 
 		default:
-			if !isCharEndOfValue(char) {
-				return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "'_', white space, line terminator, punctuation, EOF, or hexadecimal digits (0-9, a-f, A-F)")
+			if err := dec.isCharEndOfValue(char); err != nil {
+				return err
 			}
 
 			break LOOP
@@ -408,11 +404,11 @@ LOOP:
 			continue
 
 		default:
-			if isCharEndOfValue(char) {
-				break LOOP
+			if err := dec.isCharEndOfValue(char); err != nil {
+				return err
 			}
 
-			return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "'e', 'E', '_', or digits (0-9)")
+			break LOOP
 		}
 	}
 
@@ -425,7 +421,7 @@ LOOP:
 	}
 
 	if !isParseable {
-		return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, lastChar, "digits (0-9)")
+		return dec.errInvalidChar(lastChar, "digits (0-9)")
 	}
 
 	i, err := strconv.ParseFloat(prepNumTokensParseable(string(dec.tokens)), 64)
@@ -473,11 +469,11 @@ LOOP:
 			continue
 
 		default:
-			if isCharEndOfValue(char) {
-				break LOOP
+			if err := dec.isCharEndOfValue(char); err != nil {
+				return err
 			}
 
-			return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "'1', '0', or '_'")
+			break LOOP
 		}
 	}
 
@@ -533,8 +529,8 @@ LOOP:
 			continue
 
 		default:
-			if !isCharEndOfValue(char) {
-				return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "'_', white space, line terminator, punctuation, EOF, or octal digits (0-7)")
+			if err := dec.isCharEndOfValue(char); err != nil {
+				return err
 			}
 
 			break LOOP
@@ -587,15 +583,15 @@ func (dec *decoder) validateNumUnderscore() (isEndOfVal bool, lastChar rune, err
 			return false, char, nil
 
 		default:
-			if !isCharEndOfValue(char) {
-				return false, 0, errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "'_', white space, line terminator, punctuation, EOF, or digits (0-9)")
+			if err := dec.isCharEndOfValue(char); err != nil {
+				return false, 0, err
 			}
 
 			return true, char, nil
 		}
 
 	default:
-		return false, char, errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "'e', 'E' or digits (0-9)")
+		return false, char, dec.errInvalidChar(char, "'e', 'E' or digits (0-9)")
 	}
 }
 

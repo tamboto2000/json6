@@ -2,19 +2,19 @@
 // Refer to https://github.com/d3x0r/JSON6 for more info
 package json6
 
-const (
-	null = iota
-	undefined
-	boolean
-	backTickstr
-	doubleQuoteStr
-	singleQuoteStr
-	integer
-	float
-	obj
-	array
-	comment
-)
+// const (
+// 	null = iota
+// 	undefined
+// 	boolean
+// 	backTickstr
+// 	doubleQuoteStr
+// 	singleQuoteStr
+// 	integer
+// 	float
+// 	obj
+// 	array
+// 	comment
+// )
 
 // type object struct {
 // 	kind    uint

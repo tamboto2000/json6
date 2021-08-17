@@ -14,24 +14,39 @@ func UnmarshalBytes(data []byte, v interface{}) error {
 
 	dec := newDecoder(val, s)
 
-	return dec.scan()
+	return dec.scan(false, 0)
 }
 
 func newDecoder(val reflect.Value, s *scanner.Scanner) *decoder {
-	return &decoder{val: val, s: s}
+	return &decoder{val: val, s: s, state: literal}
 }
+
+// value state
+const (
+	literal = iota
+	array
+	object
+)
 
 type decoder struct {
-	val     reflect.Value
-	s       *scanner.Scanner
-	numSign rune // for numeric, '-' and '+'
-	tokens  []rune
+	val      reflect.Value
+	s        *scanner.Scanner
+	numSign  rune // for numeric, '-' and '+'
+	tokens   []rune
+	state    uint // default is literal
+	lastChar rune // last scanned character
 }
 
-func (dec *decoder) scan() error {
+func (dec *decoder) scan(isWithBegin bool, beginChar rune) error {
+	var char rune
 LOOP:
 	for {
-		char := dec.s.Next()
+		if isWithBegin {
+			char = beginChar
+			isWithBegin = false
+		} else {
+			char = dec.s.Next()
+		}
 
 		switch char {
 		// undefined
@@ -83,8 +98,52 @@ LOOP:
 		// return error if character is neither of the two
 		default:
 			if !isCharWhiteSpace(char) && !isCharLineTerm(char) {
-				return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "beginning of value")
+				return dec.errInvalidChar(char, "beginning of value")
 			}
+		}
+	}
+
+	return nil
+}
+
+// isCharEndOfValue check if char is valid end of value for the given decoder.state,
+// if state is literal or object, scanner will be advanced to find punctuator (',', ']', or '}'),
+// return error if char is not whitespace, line terminator, or punctuator, store the punctuator into decoder.lastChar
+func (dec *decoder) isCharEndOfValue(char rune) error {
+	switch dec.state {
+	case literal:
+		if !isCharWhiteSpace(char) && !isCharLineTerm(char) && char != scanner.EOF {
+			return dec.errInvalidChar(char, "whitespace, line terminator, or EOF")
+		}
+
+	case array:
+	CHECK_PUNCT_ARRAY:
+		switch char {
+		case ',', ']':
+			dec.lastChar = char
+
+		default:
+			if !isCharWhiteSpace(char) && !isCharLineTerm(char) {
+				return dec.errInvalidChar(char, "whitespace, line terminator, ',', or ']'")
+			}
+
+			char = dec.s.Next()
+			goto CHECK_PUNCT_ARRAY
+		}
+
+	case object:
+	CHECK_PUNCT_OBJECT:
+		switch char {
+		case ',', '}':
+			dec.lastChar = char
+
+		default:
+			if !isCharWhiteSpace(char) && !isCharLineTerm(char) {
+				return dec.errInvalidChar(char, "whitespace, line terminator, ',', or '}'")
+			}
+
+			char = dec.s.Next()
+			goto CHECK_PUNCT_OBJECT
 		}
 	}
 

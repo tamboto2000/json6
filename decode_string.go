@@ -70,7 +70,7 @@ func (dec *decoder) decodeString(begin rune) error {
 				for i := 0; i < 2; i++ {
 					char = dec.s.Next()
 					if !isCharValidHex(char) {
-						return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "hexadecimal number")
+						return dec.errInvalidChar(char, "hexadecimal number")
 					}
 
 					hexChars[i] = char
@@ -97,7 +97,7 @@ func (dec *decoder) decodeString(begin rune) error {
 					for i := 0; i < 3; i++ {
 						char = dec.s.Next()
 						if !isCharValidHex(char) {
-							return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "hexadecimal number")
+							return dec.errInvalidChar(char, "hexadecimal number")
 						}
 
 						hexChars[i+1] = char
@@ -121,7 +121,7 @@ func (dec *decoder) decodeString(begin rune) error {
 								break
 							}
 
-							return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "hexadecimal number or '}'")
+							return dec.errInvalidChar(char, "hexadecimal number or '}'")
 						}
 
 						hexChars = append(hexChars, char)

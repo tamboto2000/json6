@@ -44,7 +44,7 @@ LOOP:
 			break LOOP
 
 		default:
-			return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "'/' or '*'")
+			return dec.errInvalidChar(char, "'/' or '*'")
 		}
 	}
 

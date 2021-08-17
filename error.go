@@ -2,6 +2,7 @@ package json6
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 )
 
@@ -16,22 +17,22 @@ func errUnexpectedEOF(ln, col int) error {
 	return ErrUnexpectedEOF(errors.New("unexpected EOF at " + strconv.Itoa(ln) + ":" + strconv.Itoa(col)))
 }
 
-func errInvalidChar(ln, col int, invChar rune, expect string) error {
-	return ErrInvalidChar(errors.New("invalid character " + string(invChar) + " at " + strconv.Itoa(ln) + ":" + strconv.Itoa(col) + ", expecting " + expect))
+func (dec *decoder) errInvalidChar(invChar rune, expect string) error {
+	return fmt.Errorf("invalid character '%s' at %d:%d, expecting %s", string([]rune{invChar}), dec.s.Pos().Line, dec.s.Pos().Column, expect)
 }
 
 func errUnmarshalNilVal() error {
-	return ErrUnmarshalNil(errors.New("can not unmarshal to nil value"))
+	return errors.New("can not unmarshal to nil value")
 }
 
 func errUnmarshalNonPtr() error {
-	return ErrUnmarshalNonPtr(errors.New("can not unmarshal to non pointer value"))
+	return errors.New("can not unmarshal to non pointer value")
 }
 
 func errMissMatchVal(srcType, valTypeName, valType string) error {
-	return ErrMissMatchVal(errors.New("can not unmarshal " + srcType + " to " + valTypeName + " (" + valType + ")"))
+	return errors.New("can not unmarshal " + srcType + " to " + valTypeName + " (" + valType + ")")
 }
 
 func errEmptySource() error {
-	return ErrEmptySource(errors.New("source is empty"))
+	return errors.New("source is empty")
 }

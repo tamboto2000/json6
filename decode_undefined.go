@@ -10,7 +10,7 @@ var undefinedChars = []rune{'n', 'd', 'e', 'f', 'i', 'n', 'e', 'd'}
 func (dec *decoder) decodeUndefined() error {
 	for _, c := range undefinedChars {
 		if char := dec.s.Next(); char != c {
-			return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, string(c))
+			return dec.errInvalidChar(char, string(c))
 		}
 	}
 
@@ -31,5 +31,5 @@ func (dec *decoder) decodeUndefined() error {
 
 	// advance reader if last char is invalid value terminator and return error
 	dec.s.Next()
-	return errInvalidChar(dec.s.Pos().Line, dec.s.Pos().Column, char, "whitespace, punctuator, or line terminator")
+	return dec.errInvalidChar(char, "whitespace, punctuator, or line terminator")
 }
