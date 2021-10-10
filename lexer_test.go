@@ -744,6 +744,28 @@ func TestFetchExponentNumberWithInvalidSeparator(t *testing.T) {
 	}
 }
 
+// TestFetchExponentNumberEndByNonEOF test Lexer.fetchExponentNumber() behavior
+// when token end by whitespace and punctuation, not an EOF
+func TestFetchExponentNumberEndByNonEOF(t *testing.T) {
+	inputs := []string{"123 ", "123{", "123}", "123[", "123]", "123:", "123,"}
+	expected := "123"
+	for _, input := range inputs {
+		reader := bytes.NewReader([]byte(input))
+		lex := NewLexer(reader)
+		if err := lex.fetchExponentNumber(); err != nil {
+			t.Errorf(err.Error())
+			return
+		}
+
+		token := lex.tokens[0]
+
+		if token.String() != expected {
+			t.Errorf("unexpected '%s', expecting '%s'", token.String(), expected)
+			return
+		}
+	}
+}
+
 // func TestTokens(t *testing.T) {
 // 	input := `
 // 	{
