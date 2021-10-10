@@ -674,6 +674,76 @@ func TestFetchInfinityNumberEndByPunct(t *testing.T) {
 	}
 }
 
+// -------------------- Tests for Lexer.fetchExponentNumber() --------------------
+
+// TestFetchExponentNumber test Lexer.fetchExponentNumber() behavior
+func TestFetchExponentNumberWithSign(t *testing.T) {
+	expects := []string{"123", "-123", "+123"}
+	for _, expected := range expects {
+		reader := bytes.NewReader([]byte(expected))
+		lex := NewLexer(reader)
+		if err := lex.fetchExponentNumber(); err != nil {
+			t.Error(err.Error())
+			return
+		}
+
+		token := lex.tokens[0]
+
+		if token.String() != expected {
+			t.Errorf("unexpected '%s', expecting '%s'", token.String(), expected)
+			return
+		}
+	}
+}
+
+// TestFetchExponentNumberWithInvalidChar test Lexer.fetchExponentNumber() behavior
+// when invalid character present
+func TestFetchExponentNumberWithInvalidChar(t *testing.T) {
+	inputs := []string{"123a", "a123"}
+	for _, input := range inputs {
+		reader := bytes.NewReader([]byte(input))
+		lex := NewLexer(reader)
+		if err := lex.fetchExponentNumber(); err == nil {
+			token := lex.tokens[0]
+			t.Errorf("unexpected result '%s', expecting invalid char error", token.String())
+			return
+		}
+	}
+}
+
+// TestFetchExponentNumberWithSeparator test Lexer.fetchExponentNumber() behavior
+// when separator present
+func TestFetchExponentNumberWithSeparator(t *testing.T) {
+	expected := "1_2_3"
+	reader := bytes.NewReader([]byte(expected))
+	lex := NewLexer(reader)
+	if err := lex.fetchExponentNumber(); err != nil {
+		t.Errorf(err.Error())
+		return
+	}
+
+	token := lex.tokens[0]
+
+	if token.String() != expected {
+		t.Errorf("unexpected '%s', expecting '%s'", token.String(), expected)
+	}
+}
+
+// TestFetchExponentNumberWithInvalidSeparator test Lexer.fetchExponentNumber() behavior
+// when separator present but with invalid placement
+func TestFetchExponentNumberWithInvalidSeparator(t *testing.T) {
+	inputs := []string{"_123", "123_", "1__23"}
+	for _, input := range inputs {
+		reader := bytes.NewReader([]byte(input))
+		lex := NewLexer(reader)
+		if err := lex.fetchExponentNumber(); err == nil {
+			token := lex.tokens[0]
+			t.Errorf("unexpected result '%s', expecting invalid char error", token.String())
+			return
+		}
+	}
+}
+
 // func TestTokens(t *testing.T) {
 // 	input := `
 // 	{

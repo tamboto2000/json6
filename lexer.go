@@ -1011,10 +1011,12 @@ func (lx *Lexer) fetchExponentNumber() error {
 			}
 
 			lx.token.chars = append(lx.token.chars, char)
+		} else {
+			lx.token.chars = append(lx.token.chars, char)
+			return errInvalidChar(char, lx.pos, lx.token.chars, "'+', '-', or decimal digit")
 		}
-
+	} else {
 		lx.token.chars = append(lx.token.chars, char)
-		return errInvalidChar(char, lx.pos, lx.token.chars, "'+', '-', or decimal digit")
 	}
 
 	for {
@@ -1044,6 +1046,8 @@ func (lx *Lexer) fetchExponentNumber() error {
 				if !unicode.IsDigit(char) {
 					return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
 				}
+
+				continue
 			} else if isCharWhitespace(char) {
 				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 				return nil
