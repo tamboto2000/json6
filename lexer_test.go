@@ -5,6 +5,81 @@ import (
 	"testing"
 )
 
+// -------------------- Tests for isCharValidHexa() --------------------
+
+// TestIsCharValidHexa test isCharValidHexa() behavior
+func TestIsCharValidHexa(t *testing.T) {
+	chars := []rune{
+		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+		'a', 'b', 'c', 'd', 'e', 'f',
+		'A', 'B', 'C', 'D', 'E', 'F',
+	}
+
+	for _, char := range chars {
+		if !isCharValidHexa(char) {
+			t.Errorf("character '%s' should be valid hexadecimal", string([]rune{char}))
+		}
+	}
+}
+
+// TestIsCharValidHexaInvalid test isCharValidHexa() behavior
+// when checking invalid hexadecimal char
+func TestIsCharValidHexaInvalid(t *testing.T) {
+	chars := []rune{'q', 'w', 'u', 'r', 't', 'y'}
+
+	for _, char := range chars {
+		if isCharValidHexa(char) {
+			t.Errorf("character '%s' should be invalid hexadecimal", string([]rune{char}))
+		}
+	}
+}
+
+// -------------------- Tests for isCharValidOctal() --------------------
+
+// TestIsCharValidOctal test isCharValidOctal() behavior
+func TestIsCharValidOctal(t *testing.T) {
+	chars := []rune{'0', '1', '2', '3', '4', '5', '6', '7'}
+	for _, char := range chars {
+		if !isCharValidOctal(char) {
+			t.Errorf("character '%s' should be valid octaldecimal", string([]rune{char}))
+		}
+	}
+}
+
+// TestIsCharValidOctalInvalid test isCharValidHexa() behavior
+// when checking invalid octaldecimal char
+func TestIsCharValidOctalInvalid(t *testing.T) {
+	chars := []rune{'8', '9', 'a', 'b', 'c'}
+	for _, char := range chars {
+		if isCharValidOctal(char) {
+			t.Errorf("character '%s' should be invalid octaldecimal", string([]rune{char}))
+		}
+	}
+}
+
+// -------------------- Tests for isCharPunct() --------------------
+
+// TestIsCharPunct test isCharPunct() behavior
+func TestIsCharPunct(t *testing.T) {
+	chars := []rune{'{', '}', '[', ']', ':', ','}
+	for _, char := range chars {
+		if !isCharPunct(char) {
+			t.Errorf("character '%s' should be valid punctuation", string([]rune{char}))
+		}
+	}
+}
+
+// TestIsCharPunctInvalid test isCharPunct() behavior
+// when checking invalid punctuation
+func TestIsCharPunctInvalid(t *testing.T) {
+	chars := []rune{'!', '@', '#'}
+	for _, char := range chars {
+		if isCharPunct(char) {
+			t.Errorf("character '%s' should be invalid punctuation", string([]rune{char}))
+		}
+	}
+}
+
 // TestFetchNull test Lexer.fetchNull() behavior
 func TestFetchNull(t *testing.T) {
 	reader := bytes.NewReader([]byte("ull"))
