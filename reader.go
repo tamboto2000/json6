@@ -27,6 +27,9 @@ func (r *reader) ReadRune() (rune, int, error) {
 	} else if char == '\r' {
 		r.p.addLn(1)
 		r.p.setCol(0)
+	} else if char == '\u2028' || char == '\u2029' {
+		r.p.addLn(1)
+		r.p.setCol(0)
 	} else {
 		r.p.addCol(1)
 	}
