@@ -2,6 +2,7 @@ package json6
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 )
 
@@ -988,37 +989,68 @@ func TestFetchDoubleNumberWithExponent(t *testing.T) {
 	}
 }
 
-// func TestTokens(t *testing.T) {
-// 	input := `
-// 	{
-// 		nullVal: null,
-// 		undef: undefined,
-// 		trueBool: true,
-// 		falseBool: false,
-// 		array: [
-// 			null,
-// 			undefined,
-// 			true,
-// 			false,
-// 			"double-quote string",
-// 			'single-quote string',
-// 		],
-// 		"doubleStrIden": "\u1234 \u{12345678} \xFf",
-// 		'singleStrIden': 'Howdy',
-// 	}
-// `
-// 	reader := bytes.NewReader([]byte(input))
-// 	lex := NewLexer(reader)
-// 	tokens, err := lex.Tokens()
-// 	if err != nil {
-// 		t.Error(err.Error())
-// 		return
-// 	}
+func TestTokens(t *testing.T) {
+	input := `
+	{
+		nullVal: null,
+		undef: undefined,
+		trueBool: true,
+		falseBool: false,
+		array: [
+			null,
+			undefined,
+			true,
+			false,
+			"double-quote string",
+			'single-quote string',
+		],
+		"doubleStrIden": "\u1234 \u{12345678} \xFf",
+		'singleStrIden': 'Howdy',
+		arrayOfNumbers: [
+			123,
+			-123,
+			+123,
+			--123,
+			.123,
+			-.123,
+			+.123,
+			--.123,
+			0.123,
+			-0.123,
+			+0.123,
+			--0.123,
+			.e123,
+			.E123,
+			1.e123,
+			1.E123,
+			0x123,
+			0X123,
+			0b1010,
+			0B1010,
+			0o123,
+			0O123,
+			0123,
+			-Infinity,
+			+Infinity,
+			Infinity,
+			-NaN,
+			+NaN,
+			NaN,			
+		],
+	}
+`
+	reader := bytes.NewReader([]byte(input))
+	lex := NewLexer(reader)
+	tokens, err := lex.Tokens()
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
 
-// 	for _, token := range tokens {
-// 		fmt.Println("type:", token.TypeString())
-// 		fmt.Println("string:", token.String())
-// 		fmt.Printf("position: %d:%d \n", token.Pos.Line(), token.Pos.Column())
-// 		fmt.Print("\n")
-// 	}
-// }
+	for _, token := range tokens {
+		fmt.Println("type:", token.TypeString())
+		fmt.Println("string:", token.String())
+		fmt.Printf("position: %d:%d \n", token.Pos.Line(), token.Pos.Column())
+		fmt.Print("\n")
+	}
+}

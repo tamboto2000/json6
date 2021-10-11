@@ -215,6 +215,31 @@ func (lx *Lexer) Tokens() ([]Token, error) {
 
 			continue
 
+		// number
+		case '-', '+', '.', 'I', 'N':
+			if err := lx.fetchNumber(char); err != nil {
+				if lx.ignoreErr {
+					lx.token = Token{}
+					continue
+				}
+
+				return nil, err
+			}
+
+			continue
+
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			if err := lx.fetchNumber(char); err != nil {
+				if lx.ignoreErr {
+					lx.token = Token{}
+					continue
+				}
+
+				return nil, err
+			}
+
+			continue
+
 		default:
 			// Check if char is whitespace
 			if isCharWhitespace(char) {
@@ -1159,6 +1184,193 @@ func (lx *Lexer) fetchExponentNumber() error {
 
 			lx.token.chars = append(lx.token.chars, char)
 			return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit, separator, whitespace, or punctuator")
+		}
+
+		lx.token.chars = append(lx.token.chars, char)
+	}
+}
+
+// fetchNumber fetch number token
+func (lx *Lexer) fetchNumber(beginChar rune) error {
+	lx.token.t = TokenNumber
+BEGIN_CHAR_CHECK:
+	switch beginChar {
+	case '-':
+		lx.token.chars = append(lx.token.chars, beginChar)
+		for {
+			char, _, err := lx.r.ReadRune()
+			if err != nil {
+				if err == io.EOF {
+					return errUnexpectedEOF(lx.pos, "decimal digit or '-'")
+				}
+
+				return err
+			}
+
+			if char == '-' {
+				lx.token.chars = append(lx.token.chars, char)
+				continue
+			}
+
+			beginChar = char
+			goto BEGIN_CHAR_CHECK
+		}
+
+	case '+':
+		lx.token.chars = append(lx.token.chars, beginChar)
+		char, _, err := lx.r.ReadRune()
+		if err != nil {
+			if err == io.EOF {
+				return errUnexpectedEOF(lx.pos, "decimal digit")
+			}
+
+			return err
+		}
+
+		beginChar = char
+		goto BEGIN_CHAR_CHECK
+
+	// double
+	case '.':
+		return lx.fetchDoubleNumber()
+
+	// Infinity
+	case 'I':
+		return lx.fetchInfinityNumber()
+
+	// NaN
+	case 'N':
+		return lx.fetchNanNumber()
+
+	// possible hexadecimal, binary, octaldecimal, or double
+	case '0':
+		lx.token.chars = append(lx.token.chars, beginChar)
+		char, _, err := lx.r.ReadRune()
+		if err != nil {
+			if err == io.EOF {
+				lx.push()
+				return nil
+			}
+
+			return nil
+		}
+
+		switch char {
+		// hexadecimal
+		case 'x', 'X':
+			lx.token.chars = append(lx.token.chars, char)
+			return lx.fetchHexaNumber()
+
+		// binary
+		case 'b', 'B':
+			lx.token.chars = append(lx.token.chars, char)
+			return lx.fetchBinaryNumber()
+
+		// octaldecimal
+		case 'o', 'O':
+			lx.token.chars = append(lx.token.chars, char)
+			return lx.fetchOctalNumber()
+
+		// exponent
+		case 'e', 'E':
+			lx.token.chars = append(lx.token.chars, char)
+			return lx.fetchExponentNumber()
+
+		// double
+		case '.':
+			return lx.fetchDoubleNumber()
+
+		// separator
+		case '_':
+			lx.token.chars = append(lx.token.chars, char)
+			char, _, err := lx.r.ReadRune()
+			if err != nil {
+				if err == io.EOF {
+					return errUnexpectedEOF(lx.pos, "decimal digit")
+				}
+
+				return err
+			}
+
+			lx.token.chars = append(lx.token.chars, char)
+			if !unicode.IsDigit(char) {
+				return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
+			}
+
+		default:
+			if unicode.IsDigit(char) {
+				lx.token.chars = append(lx.token.chars, char)
+				break
+			} else if isCharPunct(char) {
+				defer lx.fetchPunct(char)
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return nil
+			} else if isCharWhitespace(char) {
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return nil
+			}
+
+			lx.token.chars = append(lx.token.chars, char)
+			return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit, hexadecimal indicator, octaldecimal indicator, binary indicator, decimal point, exponent indicator, punctuator, whitespace, or separator")
+		}
+
+	// decimal digit
+	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		lx.token.chars = append(lx.token.chars, beginChar)
+
+	default:
+		lx.token.chars = append(lx.token.chars, beginChar)
+		return errInvalidChar(beginChar, lx.pos, lx.token.chars, "decimal digit, decimal point, 'I' (Infinity), or 'N' (NaN)")
+	}
+
+	for {
+		char, _, err := lx.r.ReadRune()
+		if err != nil {
+			if err == io.EOF {
+				lx.push()
+				return nil
+			}
+
+			return err
+		}
+
+		if !unicode.IsDigit(char) {
+			switch char {
+			case '.':
+				return lx.fetchDoubleNumber()
+
+			case 'e', 'E':
+				lx.token.chars = append(lx.token.chars, char)
+				return lx.fetchExponentNumber()
+
+			case '_':
+				lx.token.chars = append(lx.token.chars, char)
+				char, _, err := lx.r.ReadRune()
+				if err != nil {
+					if err == io.EOF {
+						return errUnexpectedEOF(lx.pos, "decimal digit")
+					}
+
+					return err
+				}
+
+				lx.token.chars = append(lx.token.chars, char)
+				if !unicode.IsDigit(char) {
+					return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
+				}
+			}
+
+			if isCharPunct(char) {
+				defer lx.fetchPunct(char)
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return nil
+			} else if isCharWhitespace(char) {
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return nil
+			}
+
+			lx.token.chars = append(lx.token.chars, char)
+			return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit, decimal point, exponent indicator, punctuator, whitespace, or separator")
 		}
 
 		lx.token.chars = append(lx.token.chars, char)
