@@ -901,6 +901,58 @@ func (lx *Lexer) fetchInfinityNumber() error {
 	return lx.fetchIdentifier(false, char)
 }
 
+var nanChars = []rune{'a', 'N'}
+
+// fetchNanNumber fetch number token with NaN as value
+func (lx *Lexer) fetchNanNumber() error {
+	lx.token.chars = append(lx.token.chars, 'N')
+	for _, c := range nanChars {
+		char, _, err := lx.r.ReadRune()
+		if err != nil {
+			if err == io.EOF {
+				return errUnexpectedEOF(lx.pos, string([]rune{c}))
+			}
+
+			return err
+		}
+
+		if char != c {
+			return lx.fetchIdentifier(false, char)
+		}
+
+		lx.token.chars = append(lx.token.chars, char)
+	}
+
+	char, _, err := lx.r.ReadRune()
+	if err != nil {
+		if err == io.EOF {
+			lx.push()
+			return nil
+		}
+
+		return err
+	}
+
+	if isCharPunct(char) {
+		defer lx.fetchPunct(char)
+		lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+		return nil
+	} else if isCharWhitespace(char) {
+		lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+		return nil
+	}
+
+	// if its turn out to be not a number, the nearest possibility is that this token
+	// might be an identifier, but NaN can start with '-' and '+' sign, so we must check
+	// if this token start with a sign
+	if char := lx.token.chars[0]; char == '+' || char == '-' {
+		pos := newPosition(lx.pos.ln, lx.pos.col-len(lx.token.chars)-1)
+		return errInvalidChar(char, pos, lx.token.chars, "'$', '_', unicode escape sequence, or any charater in categories Uppercase letter (Lu), Lowercase letter (Ll), Titlecase letter (Lt), Modifier letter (Lm), Other letter (Lo), Letter number (Nl)")
+	}
+
+	return lx.fetchIdentifier(false, char)
+}
+
 // fetchOctalNumber fetch number token with octal numeric as value
 func (lx *Lexer) fetchOctalNumber() error {
 	isFirstChar := true
@@ -960,26 +1012,74 @@ func (lx *Lexer) fetchOctalNumber() error {
 	}
 }
 
-// // fetchFloatingPointNumber fetch floating point number
-// func (lx *Lexer) fetchFloatingPointNumber() error {
-// 	isFirstChar := true
-// 	for {
-// 		char, _, err := lx.r.ReadRune()
-// 		if err != nil {
-// 			if err == io.EOF {
-// 				if isFirstChar {
-// 					return errUnexpectedEOF(lx.pos, "decimal digit")
-// 				}
-// 			}
+// fetchDoubleNumber fetch double number (number with decimal point, example: .123, 0.123, 1.234)
+func (lx *Lexer) fetchDoubleNumber() error {
+	lx.token.chars = append(lx.token.chars, '.')
+	isFirstChar := true
+	for {
+		char, _, err := lx.r.ReadRune()
+		if err != nil {
+			if err == io.EOF {
+				if isFirstChar {
+					return errUnexpectedEOF(lx.pos, "decimal digit")
+				}
 
-// 			return err
-// 		}
+				lx.push()
+				return nil
+			}
 
-// 		isFirstChar = false
-// 	}
+			return err
+		}
 
-// 	return nil
-// }
+		// possible exponent number
+		if !unicode.IsDigit(char) {
+			if isFirstChar {
+				if char != 'e' && char != 'E' {
+					lx.token.chars = append(lx.token.chars, char)
+					return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit or exponent indicator")
+				}
+
+				lx.token.chars = append(lx.token.chars, char)
+				return lx.fetchExponentNumber()
+			}
+
+			if char == 'e' || char == 'E' {
+				lx.token.chars = append(lx.token.chars, char)
+				return lx.fetchExponentNumber()
+			} else if char == '_' {
+				lx.token.chars = append(lx.token.chars, char)
+				char, _, err := lx.r.ReadRune()
+				if err != nil {
+					if err == io.EOF {
+						return errUnexpectedEOF(lx.pos, "decimal digit")
+					}
+
+					return err
+				}
+
+				lx.token.chars = append(lx.token.chars, char)
+				if !unicode.IsDigit(char) {
+					return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
+				}
+
+				continue
+			} else if isCharPunct(char) {
+				defer lx.fetchPunct(char)
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return nil
+			} else if isCharWhitespace(char) {
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return nil
+			}
+
+			lx.token.chars = append(lx.token.chars, char)
+			return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit, separator, or exponent indicator")
+		}
+
+		lx.token.chars = append(lx.token.chars, char)
+		isFirstChar = false
+	}
+}
 
 // fetchExponentNumber fetch number with exponent sign
 func (lx *Lexer) fetchExponentNumber() error {

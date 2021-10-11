@@ -553,7 +553,7 @@ func TestFetchOctalNumberEndByPunct(t *testing.T) {
 	}
 }
 
-// -------------------- Tests for Lexer.fetchOctalNumber() --------------------
+// -------------------- Tests for Lexer.fetchInfinityNumber() --------------------
 
 // TestFetchInfinityNumber test Lexer.fetchInfinityNumber() behavior
 func TestFetchInfinityNumber(t *testing.T) {
@@ -759,6 +759,153 @@ func TestFetchExponentNumberEndByNonEOF(t *testing.T) {
 
 		token := lex.tokens[0]
 
+		if token.String() != expected {
+			t.Errorf("unexpected '%s', expecting '%s'", token.String(), expected)
+			return
+		}
+	}
+}
+
+// -------------------- Tests for Lexer.fetchNanNumber() --------------------
+
+// TestFetchNanNumber test Lexer.fetchNanNumber() behavior
+func TestFetchNanNumber(t *testing.T) {
+	expected := "NaN"
+	input := []byte("aN")
+	lex := NewLexer(bytes.NewReader(input))
+	err := lex.fetchNanNumber()
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	token := lex.tokens[0]
+	if token.String() != expected {
+		t.Errorf("unexpected '%s', expecting '%s'", token.String(), expected)
+	}
+}
+
+// TestFetchNanNumberEndByNonEOF test Lexer.fetchNanNumber() behavior
+// when token end by not an EOF
+func TestFetchNanNumberEndByNonEOF(t *testing.T) {
+	inputs := [][]byte{[]byte("aN "), []byte("aN{"), []byte("aN}"), []byte("aN["), []byte("aN]"), []byte("aN:"), []byte("aN,")}
+	expected := "NaN"
+
+	for _, input := range inputs {
+		lex := NewLexer(bytes.NewReader(input))
+		err := lex.fetchNanNumber()
+		if err != nil {
+			t.Error(err.Error())
+			return
+		}
+
+		token := lex.tokens[0]
+		if token.String() != expected {
+			t.Errorf("unexpected '%s', expecting '%s'", token.String(), expected)
+			return
+		}
+	}
+}
+
+// TestFetchNanNumberButIdent test Lexer.fetchNanNumber()
+// when token is not forming a NaN but instead and identifier
+func TestFetchNanNumberButIdent(t *testing.T) {
+	inputs := [][]byte{[]byte("aNButIsIdentifier"), []byte("ahThisIsNotNaN")}
+	expects := []string{"NaNButIsIdentifier", "NahThisIsNotNaN"}
+	for i, input := range inputs {
+		lex := NewLexer(bytes.NewReader(input))
+		if err := lex.fetchNanNumber(); err != nil {
+			t.Error(err.Error())
+			return
+		}
+
+		token := lex.tokens[0]
+		if token.Type() != TokenIdentifier {
+			t.Errorf("unexpected token type '%s', expecting type '%s'", token.TypeString(), tokenTypeMap[TokenIdentifier])
+			return
+		}
+
+		expected := expects[i]
+		if token.String() != expected {
+			t.Errorf("unexpected '%s', expecting '%s'", token.String(), expected)
+			return
+		}
+	}
+}
+
+// -------------------- Tests for Lexer.fetchDoubleNumber() --------------------
+
+// TestFetchDoubleNumber test Lexer.fetchDoubleNumber() behavior
+func TestFetchDoubleNumber(t *testing.T) {
+	input := []byte("123")
+	expected := ".123"
+	lex := NewLexer(bytes.NewReader(input))
+	if err := lex.fetchDoubleNumber(); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	token := lex.tokens[0]
+	if token.String() != expected {
+		t.Errorf("unexpected '%s', expecting '%s'", token.String(), expected)
+	}
+}
+
+// TestFetchDoubleNumberInvalid test Lexer.fetchDoubleNumber() behavior
+// when there's invalid character
+func TestFetchDoubleNumberInvalid(t *testing.T) {
+	input := []byte("12a")
+	lex := NewLexer(bytes.NewReader(input))
+	if err := lex.fetchDoubleNumber(); err == nil {
+		token := lex.tokens[0]
+		t.Errorf("unexpected result '%s', expecting error invalid character", token.String())
+		return
+	}
+}
+
+// TestFetchDoubleNumberWithSeparator test Lexer.fetchDoubleNumber() behavior
+// when using separator
+func TestFetchDoubleNumberWithSeparator(t *testing.T) {
+	input := []byte("1_2_3")
+	expected := ".1_2_3"
+	lex := NewLexer(bytes.NewReader(input))
+	if err := lex.fetchDoubleNumber(); err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	token := lex.tokens[0]
+	if token.String() != expected {
+		t.Errorf("unexpected result '%s', expecting '%s'", token.String(), expected)
+	}
+}
+
+// TestFetchDoubleNumberWithInvalidSeparator test Lexer.fetchDoubleNumber() behavior
+// when using invalid separator placement
+func TestFetchDoubleNumberWithInvalidSeparator(t *testing.T) {
+	inputs := [][]byte{[]byte("_123"), []byte("123_")}
+	for _, input := range inputs {
+		lex := NewLexer(bytes.NewReader(input))
+		if err := lex.fetchDoubleNumber(); err == nil {
+			token := lex.tokens[0]
+			t.Errorf("unexpected result '%s', expecting error invalid character", token.String())
+			return
+		}
+	}
+}
+
+func TestFetchDoubleNumberWithExponent(t *testing.T) {
+	inputs := []string{"e123", "E123", "e-123", "e+123", "E-123", "E+123"}
+	expects := []string{".e123", ".E123", ".e-123", ".e+123", ".E-123", ".E+123"}
+	for i, input := range inputs {
+		lex := NewLexer(bytes.NewReader([]byte(input)))
+		if err := lex.fetchDoubleNumber(); err != nil {
+			t.Error(err.Error())
+			return
+		}
+
+		token := lex.tokens[0]
+		expected := expects[i]
 		if token.String() != expected {
 			t.Errorf("unexpected '%s', expecting '%s'", token.String(), expected)
 			return
