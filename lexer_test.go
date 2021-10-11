@@ -2,7 +2,6 @@ package json6
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 )
 
@@ -989,68 +988,184 @@ func TestFetchDoubleNumberWithExponent(t *testing.T) {
 	}
 }
 
-func TestTokens(t *testing.T) {
-	input := `
-	{
-		nullVal: null,
-		undef: undefined,
-		trueBool: true,
-		falseBool: false,
-		array: [
-			null,
-			undefined,
-			true,
-			false,
-			"double-quote string",
-			'single-quote string',
-		],
-		"doubleStrIden": "\u1234 \u{12345678} \xFf",
-		'singleStrIden': 'Howdy',
-		arrayOfNumbers: [
-			123,
-			-123,
-			+123,
-			--123,
-			.123,
-			-.123,
-			+.123,
-			--.123,
-			0.123,
-			-0.123,
-			+0.123,
-			--0.123,
-			.e123,
-			.E123,
-			1.e123,
-			1.E123,
-			0x123,
-			0X123,
-			0b1010,
-			0B1010,
-			0o123,
-			0O123,
-			0123,
-			-Infinity,
-			+Infinity,
-			Infinity,
-			-NaN,
-			+NaN,
-			NaN,			
-		],
-	}
-`
-	reader := bytes.NewReader([]byte(input))
-	lex := NewLexer(reader)
-	tokens, err := lex.Tokens()
-	if err != nil {
-		t.Error(err.Error())
-		return
+// -------------------- Tests for Lexer.fetchNumber() --------------------
+
+// TestFetchNumber test Lexer.fetchNumber() behavior
+func TestFetchNumber(t *testing.T) {
+	inputBegins := []rune{
+		'1',
+		'-',
+		'+',
+		'-',
+		'.',
+		'-',
+		'+',
+		'-',
+		'0',
+		'-',
+		'+',
+		'-',
+		'.',
+		'.',
+		'1',
+		'1',
+		'0',
+		'0',
+		'0',
+		'0',
+		'0',
+		'0',
+		'0',
+		'-',
+		'+',
+		'I',
+		'-',
+		'+',
+		'N',
 	}
 
-	for _, token := range tokens {
-		fmt.Println("type:", token.TypeString())
-		fmt.Println("string:", token.String())
-		fmt.Printf("position: %d:%d \n", token.Pos.Line(), token.Pos.Column())
-		fmt.Print("\n")
+	inputs := []string{
+		"23",
+		"123",
+		"123",
+		"-123",
+		"123",
+		".123",
+		".123",
+		"-.123",
+		".123",
+		"0.123",
+		"0.123",
+		"-0.123",
+		"e123",
+		"E123",
+		".e123",
+		".E123",
+		"x123",
+		"X123",
+		"b1010",
+		"B1010",
+		"o123",
+		"O123",
+		"123",
+		"Infinity",
+		"Infinity",
+		"nfinity",
+		"NaN",
+		"NaN",
+		"aN",
+	}
+
+	expects := []string{
+		"123",
+		"-123",
+		"+123",
+		"--123",
+		".123",
+		"-.123",
+		"+.123",
+		"--.123",
+		"0.123",
+		"-0.123",
+		"+0.123",
+		"--0.123",
+		".e123",
+		".E123",
+		"1.e123",
+		"1.E123",
+		"0x123",
+		"0X123",
+		"0b1010",
+		"0B1010",
+		"0o123",
+		"0O123",
+		"0123",
+		"-Infinity",
+		"+Infinity",
+		"Infinity",
+		"-NaN",
+		"+NaN",
+		"NaN",
+	}
+
+	for i, input := range inputs {
+		lex := NewLexer(bytes.NewReader([]byte(input)))
+		if err := lex.fetchNumber(inputBegins[i]); err != nil {
+			t.Error(err.Error())
+			return
+		}
+
+		expected := expects[i]
+		token := lex.tokens[0]
+		if token.String() != expected {
+			t.Errorf("unexpected '%s', expecting '%s'", token.String(), expected)
+			return
+		}
 	}
 }
+
+// func TestTokens(t *testing.T) {
+// 	input := `
+// 	{
+// 		nullVal: null,
+// 		undef: undefined,
+// 		trueBool: true,
+// 		falseBool: false,
+// 		array: [
+// 			null,
+// 			undefined,
+// 			true,
+// 			false,
+// 			"double-quote string",
+// 			'single-quote string',
+// 		],
+// 		"doubleStrIden": "\u1234 \u{12345678} \xFf",
+// 		'singleStrIden': 'Howdy',
+// 		arrayOfNumbers: [
+// 			123,
+// 			-123,
+// 			+123,
+// 			--123,
+// 			.123,
+// 			-.123,
+// 			+.123,
+// 			--.123,
+// 			0.123,
+// 			-0.123,
+// 			+0.123,
+// 			--0.123,
+// 			.e123,
+// 			.E123,
+// 			1.e123,
+// 			1.E123,
+// 			0x123,
+// 			0X123,
+// 			0b1010,
+// 			0B1010,
+// 			0o123,
+// 			0O123,
+// 			0123,
+// 			-Infinity,
+// 			+Infinity,
+// 			Infinity,
+// 			-NaN,
+// 			+NaN,
+// 			NaN,
+// 		],
+// 	}
+// `
+// 	reader := bytes.NewReader([]byte(input))
+// 	lex := NewLexer(reader)
+// 	tokens, err := lex.Tokens()
+// 	if err != nil {
+// 		t.Error(err.Error())
+// 		return
+// 	}
+
+// 	for _, token := range tokens {
+// 		fmt.Println("type:", token.TypeString())
+// 		fmt.Println("string:", token.String())
+// 		fmt.Printf("position: %d:%d \n", token.Pos.Line(), token.Pos.Column())
+// 		fmt.Print("\n")
+// 	}
+// }
