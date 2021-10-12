@@ -20,6 +20,12 @@ const (
 	TokenComment
 )
 
+// sub-type for TokenNumber
+const (
+	tokenNumInteger = iota
+	tokenNumDouble
+)
+
 // Token types in string
 var tokenTypeMap = map[TokenType]string{
 	TokenIdentifier: "identifier",
@@ -34,9 +40,10 @@ var tokenTypeMap = map[TokenType]string{
 
 // Token contain characters that form the token, position in file, and its type
 type Token struct {
-	Pos   *Position
-	t     TokenType
-	chars []rune
+	Pos             *Position
+	t               TokenType
+	tokenNumSubType uint
+	chars           []rune
 }
 
 // String return token string
@@ -1123,6 +1130,7 @@ func (lx *Lexer) fetchOctalNumber() error {
 
 // fetchDoubleNumber fetch double number (number with decimal point, example: .123, 0.123, 1.234)
 func (lx *Lexer) fetchDoubleNumber() error {
+	lx.token.tokenNumSubType = tokenNumDouble
 	lx.token.chars = append(lx.token.chars, '.')
 	isFirstChar := true
 	for {
@@ -1192,6 +1200,7 @@ func (lx *Lexer) fetchDoubleNumber() error {
 
 // fetchExponentNumber fetch number with exponent sign
 func (lx *Lexer) fetchExponentNumber() error {
+	lx.token.tokenNumSubType = tokenNumDouble
 	// check first char
 	char, _, err := lx.r.ReadRune()
 	if err != nil {
@@ -1277,6 +1286,7 @@ func (lx *Lexer) fetchExponentNumber() error {
 // fetchNumber fetch number token
 func (lx *Lexer) fetchNumber(beginChar rune) error {
 	lx.token.t = TokenNumber
+	lx.token.tokenNumSubType = tokenNumInteger
 BEGIN_CHAR_CHECK:
 	switch beginChar {
 	case '-':
