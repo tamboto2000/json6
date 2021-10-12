@@ -1221,13 +1221,23 @@ func TestTokens(t *testing.T) {
 `
 	reader := bytes.NewReader([]byte(input))
 	lex := NewLexer(reader)
-	tokens, err := lex.Tokens()
+	err := lex.FetchTokens()
 	if err != nil {
 		t.Error(err.Error())
 		return
 	}
 
-	for _, token := range tokens {
+	for {
+		token, err := lex.ReadToken()
+		if err != nil {
+			if err == ErrNoMoreToken {
+				break
+			}
+
+			t.Error(err.Error())
+			return
+		}
+
 		fmt.Println("type:", token.TypeString())
 		fmt.Println("string:", token.String())
 		fmt.Printf("position: %d:%d \n", token.Pos.Line(), token.Pos.Column())

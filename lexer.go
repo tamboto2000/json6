@@ -102,11 +102,31 @@ func (pos *Position) addCol(add int) {
 	pos.col += add
 }
 
+// TokenReader reads tokens fetched by Lexer
+type TokenReader struct {
+	tokens []Token
+	idx    int
+	rng    int
+}
+
+func newTokenReader() *TokenReader {
+	return &TokenReader{idx: -1, rng: -1}
+}
+
+func (tokenR *TokenReader) ReadToken() (Token, error) {
+	if tokenR.idx+1 <= tokenR.rng {
+		tokenR.idx += 1
+		return tokenR.tokens[tokenR.idx], nil
+	}
+
+	return Token{}, ErrNoMoreToken
+}
+
 // Lexer fetch JSON6 tokens
 type Lexer struct {
+	*TokenReader
 	pos       *Position
 	r         io.RuneReader
-	tokens    []Token
 	token     Token // current token
 	ignoreErr bool  // set to true to ignore lexical error
 }
@@ -115,20 +135,23 @@ func NewLexer(r io.RuneReader) *Lexer {
 	pos := newPosition(1, 0)
 	r = newReader(r, pos)
 	return &Lexer{
-		pos: pos,
-		r:   r,
+		TokenReader: newTokenReader(),
+		pos:         pos,
+		r:           r,
 	}
 }
 
 func (lx *Lexer) push() {
 	lx.token.Pos = newPosition(lx.pos.Line(), lx.pos.Column())
 	lx.tokens = append(lx.tokens, lx.token)
+	lx.rng += 1
 	lx.token = Token{}
 }
 
 func (lx *Lexer) pushWithPos(ln, cl int) {
 	lx.token.Pos = newPosition(ln, cl)
 	lx.tokens = append(lx.tokens, lx.token)
+	lx.rng += 1
 	lx.token = Token{}
 }
 
@@ -139,8 +162,8 @@ func (lx *Lexer) IgnoreError(ignore bool) {
 	lx.ignoreErr = ignore
 }
 
-// Tokens return fetched tokens
-func (lx *Lexer) Tokens() ([]Token, error) {
+// FetchTokensTokens return fetched tokens
+func (lx *Lexer) FetchTokens() error {
 	for {
 		char, _, err := lx.r.ReadRune()
 		if err != nil {
@@ -148,7 +171,7 @@ func (lx *Lexer) Tokens() ([]Token, error) {
 				break
 			}
 
-			return nil, err
+			return err
 		}
 
 		switch char {
@@ -160,7 +183,7 @@ func (lx *Lexer) Tokens() ([]Token, error) {
 					continue
 				}
 
-				return nil, err
+				return err
 			}
 
 			continue
@@ -173,7 +196,7 @@ func (lx *Lexer) Tokens() ([]Token, error) {
 					continue
 				}
 
-				return nil, err
+				return err
 			}
 
 			continue
@@ -186,7 +209,7 @@ func (lx *Lexer) Tokens() ([]Token, error) {
 					continue
 				}
 
-				return nil, err
+				return err
 			}
 
 			continue
@@ -199,7 +222,7 @@ func (lx *Lexer) Tokens() ([]Token, error) {
 					continue
 				}
 
-				return nil, err
+				return err
 			}
 
 			continue
@@ -212,7 +235,7 @@ func (lx *Lexer) Tokens() ([]Token, error) {
 					continue
 				}
 
-				return nil, err
+				return err
 			}
 
 			continue
@@ -230,7 +253,7 @@ func (lx *Lexer) Tokens() ([]Token, error) {
 					continue
 				}
 
-				return nil, err
+				return err
 			}
 
 			continue
@@ -243,7 +266,7 @@ func (lx *Lexer) Tokens() ([]Token, error) {
 					continue
 				}
 
-				return nil, err
+				return err
 			}
 
 			continue
@@ -255,7 +278,7 @@ func (lx *Lexer) Tokens() ([]Token, error) {
 					continue
 				}
 
-				return nil, err
+				return err
 			}
 
 			continue
@@ -273,12 +296,12 @@ func (lx *Lexer) Tokens() ([]Token, error) {
 					continue
 				}
 
-				return nil, err
+				return err
 			}
 		}
 	}
 
-	return lx.tokens, nil
+	return nil
 }
 
 func (lx *Lexer) fetchComment() error {
