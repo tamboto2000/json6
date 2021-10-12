@@ -98,13 +98,13 @@ func (pos *Position) addCol(add int) {
 // Lexer fetch JSON6 tokens
 type Lexer struct {
 	pos       *Position
-	r         io.RuneScanner
+	r         io.RuneReader
 	tokens    []Token
 	token     Token // current token
 	ignoreErr bool  // set to true to ignore lexical error
 }
 
-func NewLexer(r io.RuneScanner) *Lexer {
+func NewLexer(r io.RuneReader) *Lexer {
 	pos := newPosition(1, 0)
 	r = newReader(r, pos)
 	return &Lexer{

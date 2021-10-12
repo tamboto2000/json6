@@ -4,11 +4,11 @@ import "io"
 
 type reader struct {
 	p        *Position
-	r        io.RuneScanner
+	r        io.RuneReader
 	lastChar rune
 }
 
-func newReader(r io.RuneScanner, pos *Position) *reader {
+func newReader(r io.RuneReader, pos *Position) *reader {
 	return &reader{p: pos, r: r}
 }
 
@@ -35,9 +35,4 @@ func (r *reader) ReadRune() (rune, int, error) {
 	}
 
 	return char, size, nil
-}
-
-func (r *reader) UnreadRune() error {
-
-	return nil
 }
