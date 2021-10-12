@@ -2,6 +2,7 @@ package json6
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 )
 
@@ -1104,68 +1105,132 @@ func TestFetchNumber(t *testing.T) {
 	}
 }
 
-// func TestTokens(t *testing.T) {
-// 	input := `
-// 	{
-// 		nullVal: null,
-// 		undef: undefined,
-// 		trueBool: true,
-// 		falseBool: false,
-// 		array: [
-// 			null,
-// 			undefined,
-// 			true,
-// 			false,
-// 			"double-quote string",
-// 			'single-quote string',
-// 		],
-// 		"doubleStrIden": "\u1234 \u{12345678} \xFf",
-// 		'singleStrIden': 'Howdy',
-// 		arrayOfNumbers: [
-// 			123,
-// 			-123,
-// 			+123,
-// 			--123,
-// 			.123,
-// 			-.123,
-// 			+.123,
-// 			--.123,
-// 			0.123,
-// 			-0.123,
-// 			+0.123,
-// 			--0.123,
-// 			.e123,
-// 			.E123,
-// 			1.e123,
-// 			1.E123,
-// 			0x123,
-// 			0X123,
-// 			0b1010,
-// 			0B1010,
-// 			0o123,
-// 			0O123,
-// 			0123,
-// 			-Infinity,
-// 			+Infinity,
-// 			Infinity,
-// 			-NaN,
-// 			+NaN,
-// 			NaN,
-// 		],
-// 	}
-// `
-// 	reader := bytes.NewReader([]byte(input))
-// 	lex := NewLexer(reader)
-// 	tokens, err := lex.Tokens()
-// 	if err != nil {
-// 		t.Error(err.Error())
-// 		return
-// 	}
+// -------------------- Tests for Lexer.fetchComment() --------------------
 
-// 	for _, token := range tokens {
-// 		fmt.Println("type:", token.TypeString())
-// 		fmt.Println("string:", token.String())
-// 		fmt.Printf("position: %d:%d \n", token.Pos.Line(), token.Pos.Column())
-// 		fmt.Print("\n")
-// 	}
-// }
+// TestFetchComment test Lexer.fetchComment() behavior
+func TestFetchComment(t *testing.T) {
+	inputs := []string{
+		"/ inline comment",
+		`*
+			multiline comment
+		*/`,
+	}
+
+	expects := []string{
+		"// inline comment",
+		`/*
+			multiline comment
+		*/`,
+	}
+
+	for i, input := range inputs {
+		lex := NewLexer(bytes.NewReader([]byte(input)))
+		if err := lex.fetchComment(); err != nil {
+			t.Error(err.Error())
+			return
+		}
+
+		token := lex.tokens[0]
+
+		if token.Type() != TokenComment {
+			t.Errorf("unexpected token type '%s', expecting type '%s'", token.TypeString(), tokenTypeMap[TokenComment])
+			return
+		}
+
+		expected := expects[i]
+		if token.String() != expected {
+			t.Errorf("unexpected '%s', expecting '%s'", token.String(), expected)
+			return
+		}
+	}
+}
+
+// TestFetchCommentInvalid test Lexer.fetchComment() behavior
+// when trying to fetch invalid comment token
+func TestFetchCommentInvalid(t *testing.T) {
+	inputs := []string{
+		"invalid comment",
+		`*
+			invalid multiline comment
+		*
+		`,
+	}
+
+	for _, input := range inputs {
+		lex := NewLexer(bytes.NewReader([]byte(input)))
+		if err := lex.fetchComment(); err == nil {
+			token := lex.tokens[0]
+			t.Errorf("unexpected result '%s', expecting error", token.String())
+			return
+		}
+	}
+}
+
+func TestTokens(t *testing.T) {
+	input := `
+	{		
+		nullVal: null, // comment 
+		undef: undefined,
+		trueBool: true,
+		falseBool: false,
+		array: [
+			null,
+			undefined,
+			true,
+			false,
+			"double-quote string",
+			'single-quote string',
+		],
+		"doubleStrIden": "\u1234 \u{12345678} \xFf",
+		'singleStrIden': 'Howdy',
+		/*
+			multiline comment
+		*/
+		arrayOfNumbers: [
+			123,
+			-123,
+			+123,
+			--123,
+			.123,
+			-.123,
+			+.123,
+			--.123,
+			0.123,
+			-0.123,
+			+0.123,
+			--0.123,
+			.e123,
+			.E123,
+			1.e123,
+			1.E123,
+			0x123,
+			0X123,
+			0b1010,
+			0B1010,
+			0o123,
+			0O123,
+			0123,
+			-Infinity,
+			+Infinity,
+			Infinity,
+			-NaN,
+			+NaN,
+			NaN,
+		],
+	}
+`
+	reader := bytes.NewReader([]byte(input))
+	lex := NewLexer(reader)
+	tokens, err := lex.Tokens()
+	if err != nil {
+		t.Error(err.Error())
+		return
+	}
+
+	for _, token := range tokens {
+		fmt.Println("type:", token.TypeString())
+		fmt.Println("string:", token.String())
+		fmt.Printf("position: %d:%d \n", token.Pos.Line(), token.Pos.Column())
+		fmt.Print("\n")
+	}
+}

@@ -145,6 +145,19 @@ func (lx *Lexer) Tokens() ([]Token, error) {
 		}
 
 		switch char {
+		// comment
+		case '/':
+			if err := lx.fetchComment(); err != nil {
+				if lx.ignoreErr {
+					lx.token = Token{}
+					continue
+				}
+
+				return nil, err
+			}
+
+			continue
+
 		// true boolean
 		case 't':
 			if err := lx.fetchTrueBool(); err != nil {
@@ -259,6 +272,77 @@ func (lx *Lexer) Tokens() ([]Token, error) {
 	}
 
 	return lx.tokens, nil
+}
+
+func (lx *Lexer) fetchComment() error {
+	lx.token.chars = append(lx.token.chars, '/')
+	lx.token.t = TokenComment
+
+	char, _, err := lx.r.ReadRune()
+	if err != nil {
+		if err == io.EOF {
+			return errUnexpectedEOF(lx.pos, "'/' or '*'")
+		}
+
+		return err
+	}
+
+	if char == '/' {
+		lx.token.chars = append(lx.token.chars, char)
+		for {
+			char, _, err := lx.r.ReadRune()
+			if err != nil {
+				if err == io.EOF {
+					lx.push()
+					return nil
+				}
+
+				return err
+			}
+
+			switch char {
+			case '\r', '\n', '\u2028', '\u2029':
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return nil
+
+			default:
+				lx.token.chars = append(lx.token.chars, char)
+			}
+		}
+	} else if char == '*' {
+		lx.token.chars = append(lx.token.chars, char)
+		for {
+			char, _, err := lx.r.ReadRune()
+			if err != nil {
+				if err == io.EOF {
+					return errUnexpectedEOF(lx.pos, "'*'")
+				}
+
+				return err
+			}
+
+			lx.token.chars = append(lx.token.chars, char)
+			if char == '*' {
+				char, _, err := lx.r.ReadRune()
+				if err != nil {
+					if err == io.EOF {
+						return errUnexpectedEOF(lx.pos, "'/'")
+					}
+
+					return err
+				}
+
+				lx.token.chars = append(lx.token.chars, char)
+				if char == '/' {
+					lx.push()
+					return nil
+				}
+			}
+		}
+	}
+
+	lx.token.chars = append(lx.token.chars, char)
+	return errInvalidChar(char, lx.pos, lx.token.chars, "'/'")
 }
 
 var falseBoolChars = []rune{'a', 'l', 's', 'e'}
