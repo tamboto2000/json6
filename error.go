@@ -14,3 +14,4 @@ func errUnexpectedEOF(pos *Position, expecting string) error {
 }
 
 var ErrNoMoreToken = errors.New("no more token")
+var ErrAlreadyAtBeginning = errors.New("already at beginning")

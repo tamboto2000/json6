@@ -3,6 +3,7 @@ package json6
 import (
 	"io"
 	"unicode"
+	"unicode/utf8"
 )
 
 // TokenType is token type
@@ -38,12 +39,61 @@ var tokenTypeMap = map[TokenType]string{
 	TokenComment:    "comment",
 }
 
+// runeReader is custom character reader for Token
+type runeReader struct {
+	chars   []rune
+	charIdx int // char reading position
+	charRng int // char reading position range
+}
+
+// newRuneReader initiate new runeReader
+func newRuneReader() *runeReader {
+	return &runeReader{
+		charIdx: -1,
+		charRng: -1,
+	}
+}
+
+// addChar add character to reader
+func (r *runeReader) addChar(char rune) {
+	r.charRng++
+	r.chars = append(r.chars, char)
+}
+
+// ReadRune read char from reader
+func (r *runeReader) ReadRune() (ch rune, size int, err error) {
+	if r.charIdx+1 <= r.charRng {
+		r.charIdx++
+		char := r.chars[r.charIdx]
+		return char, utf8.RuneLen(char), nil
+	}
+
+	return 0, 0, io.EOF
+}
+
+// UnreadRune move reader current index by -1
+func (r *runeReader) UnreadRune() error {
+	if r.charIdx-1 >= -1 {
+		r.charIdx--
+		return nil
+	}
+
+	return ErrAlreadyAtBeginning
+}
+
 // Token contain characters that form the token, position in file, and its type
 type Token struct {
 	Pos             *Position
 	t               TokenType
 	tokenNumSubType uint
-	chars           []rune
+	*runeReader
+}
+
+// newToken create new empty Token
+func newToken() Token {
+	return Token{
+		runeReader: newRuneReader(),
+	}
 }
 
 // String return token string
@@ -102,18 +152,18 @@ func (pos *Position) addCol(add int) {
 	pos.col += add
 }
 
-// TokenReader reads tokens fetched by Lexer
-type TokenReader struct {
+// tokenReader reads tokens fetched by Lexer
+type tokenReader struct {
 	tokens []Token
 	idx    int
 	rng    int
 }
 
-func newTokenReader() *TokenReader {
-	return &TokenReader{idx: -1, rng: -1}
+func newTokenReader() *tokenReader {
+	return &tokenReader{idx: -1, rng: -1}
 }
 
-func (tokenR *TokenReader) ReadToken() (Token, error) {
+func (tokenR *tokenReader) ReadToken() (Token, error) {
 	if tokenR.idx+1 <= tokenR.rng {
 		tokenR.idx += 1
 		return tokenR.tokens[tokenR.idx], nil
@@ -124,7 +174,7 @@ func (tokenR *TokenReader) ReadToken() (Token, error) {
 
 // Lexer fetch JSON6 tokens
 type Lexer struct {
-	*TokenReader
+	*tokenReader
 	pos       *Position
 	r         io.RuneReader
 	token     Token // current token
@@ -135,9 +185,10 @@ func NewLexer(r io.RuneReader) *Lexer {
 	pos := newPosition(1, 0)
 	r = newReader(r, pos)
 	return &Lexer{
-		TokenReader: newTokenReader(),
+		tokenReader: newTokenReader(),
 		pos:         pos,
 		r:           r,
+		token:       newToken(),
 	}
 }
 
@@ -145,14 +196,14 @@ func (lx *Lexer) push() {
 	lx.token.Pos = newPosition(lx.pos.Line(), lx.pos.Column())
 	lx.tokens = append(lx.tokens, lx.token)
 	lx.rng += 1
-	lx.token = Token{}
+	lx.token = newToken()
 }
 
 func (lx *Lexer) pushWithPos(ln, cl int) {
 	lx.token.Pos = newPosition(ln, cl)
 	lx.tokens = append(lx.tokens, lx.token)
 	lx.rng += 1
-	lx.token = Token{}
+	lx.token = newToken()
 }
 
 // IgnoreError determine if lexer will be ignoring lexical error or not,
@@ -305,7 +356,7 @@ func (lx *Lexer) FetchTokens() error {
 }
 
 func (lx *Lexer) fetchComment() error {
-	lx.token.chars = append(lx.token.chars, '/')
+	lx.token.addChar('/')
 	lx.token.t = TokenComment
 
 	char, _, err := lx.r.ReadRune()
@@ -318,7 +369,7 @@ func (lx *Lexer) fetchComment() error {
 	}
 
 	if char == '/' {
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 		for {
 			char, _, err := lx.r.ReadRune()
 			if err != nil {
@@ -336,11 +387,11 @@ func (lx *Lexer) fetchComment() error {
 				return nil
 
 			default:
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 			}
 		}
 	} else if char == '*' {
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 		for {
 			char, _, err := lx.r.ReadRune()
 			if err != nil {
@@ -351,7 +402,7 @@ func (lx *Lexer) fetchComment() error {
 				return err
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			if char == '*' {
 				char, _, err := lx.r.ReadRune()
 				if err != nil {
@@ -362,7 +413,7 @@ func (lx *Lexer) fetchComment() error {
 					return err
 				}
 
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				if char == '/' {
 					lx.push()
 					return nil
@@ -371,7 +422,7 @@ func (lx *Lexer) fetchComment() error {
 		}
 	}
 
-	lx.token.chars = append(lx.token.chars, char)
+	lx.token.addChar(char)
 	return errInvalidChar(char, lx.pos, lx.token.chars, "'/'")
 }
 
@@ -380,7 +431,7 @@ var falseBoolChars = []rune{'a', 'l', 's', 'e'}
 // fetchFalseBool fetch 'false' boolean
 func (lx *Lexer) fetchFalseBool() error {
 	lx.token.t = TokenBool
-	lx.token.chars = append(lx.token.chars, 'f')
+	lx.token.addChar('f')
 	for _, c := range falseBoolChars {
 		char, _, err := lx.r.ReadRune()
 		if err != nil {
@@ -400,7 +451,7 @@ func (lx *Lexer) fetchFalseBool() error {
 			return lx.fetchIdentifier(false, char)
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 	}
 
 	char, _, err := lx.r.ReadRune()
@@ -431,7 +482,7 @@ var trueBoolChars = []rune{'r', 'u', 'e'}
 // fetchTrueBool fetch 'true' boolean
 func (lx *Lexer) fetchTrueBool() error {
 	lx.token.t = TokenBool
-	lx.token.chars = append(lx.token.chars, 't')
+	lx.token.addChar('t')
 	for _, c := range trueBoolChars {
 		char, _, err := lx.r.ReadRune()
 		if err != nil {
@@ -451,7 +502,7 @@ func (lx *Lexer) fetchTrueBool() error {
 			return lx.fetchIdentifier(false, char)
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 	}
 
 	char, _, err := lx.r.ReadRune()
@@ -484,7 +535,7 @@ var nullChars = []rune{'u', 'l', 'l'}
 // fetchNull fetch null token
 func (lx *Lexer) fetchNull() error {
 	lx.token.t = TokenNull
-	lx.token.chars = append(lx.token.chars, 'n')
+	lx.token.addChar('n')
 	for _, c := range nullChars {
 		char, _, err := lx.r.ReadRune()
 		if err != nil {
@@ -505,7 +556,7 @@ func (lx *Lexer) fetchNull() error {
 			return lx.fetchIdentifier(false, char)
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 	}
 
 	// the next char will determine if this token is really is boolean or identifier
@@ -542,7 +593,7 @@ func (lx *Lexer) fetchIdentifier(isBegin bool, firstChar rune) error {
 	// append to token chars if firstChar is valid
 	switch firstChar {
 	case '$', '_':
-		lx.token.chars = append(lx.token.chars, firstChar)
+		lx.token.addChar(firstChar)
 
 	// punctuator
 	case '{', '}', '[', ']', ':', ',':
@@ -561,10 +612,10 @@ func (lx *Lexer) fetchIdentifier(isBegin bool, firstChar rune) error {
 			return err
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 
 		if char != 'u' {
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			return errInvalidChar(char, lx.pos, lx.token.chars, "'u'")
 		}
 
@@ -575,19 +626,19 @@ func (lx *Lexer) fetchIdentifier(isBegin bool, firstChar rune) error {
 	default:
 		if !unicode.In(firstChar, unicode.Lu, unicode.Ll, unicode.Lt, unicode.Lm, unicode.Lo, unicode.Nl) {
 			if isBegin {
-				lx.token.chars = append(lx.token.chars, firstChar)
+				lx.token.addChar(firstChar)
 				return errInvalidChar(firstChar, lx.pos, lx.token.chars, "'$', '_', unicode escape sequence, or any charater in categories Uppercase letter (Lu), Lowercase letter (Ll), Titlecase letter (Lt), Modifier letter (Lm), Other letter (Lo), Letter number (Nl)")
 			}
 
 			if !unicode.In(firstChar, unicode.Mn, unicode.Mc, unicode.Nd, unicode.Pc) {
 				if !isCharWhitespace(firstChar) {
-					lx.token.chars = append(lx.token.chars, firstChar)
+					lx.token.addChar(firstChar)
 					return errInvalidChar(firstChar, lx.pos, lx.token.chars, "'$', '_', unicode escape sequence, or any charater in categories Uppercase letter (Lu), Lowercase letter (Ll), Titlecase letter (Lt), Modifier letter (Lm), Other letter (Lo), Letter number (Nl), Non-spacing mark (Mn), Combining spacing mark (Mc), Decimal number (Nd), Connector punctuation (Pc)")
 				}
 			}
 		}
 
-		lx.token.chars = append(lx.token.chars, firstChar)
+		lx.token.addChar(firstChar)
 	}
 
 LOOP:
@@ -604,7 +655,7 @@ LOOP:
 
 		switch char {
 		case '$', '_':
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			continue
 
 		// punctuator
@@ -614,7 +665,7 @@ LOOP:
 			return nil
 
 		case '\\':
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			// if char is begin of escape sequence, check if escape sequence is unicode escape sequence
 			char, _, err := lx.r.ReadRune()
 			if err != nil {
@@ -626,11 +677,11 @@ LOOP:
 			}
 
 			if char != 'u' {
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				return errInvalidChar(char, lx.pos, lx.token.chars, "'u'")
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 
 			if err := lx.fetchUnicodeEscape(); err != nil {
 				return err
@@ -642,11 +693,11 @@ LOOP:
 					break LOOP
 				}
 
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				return errInvalidChar(firstChar, lx.pos, lx.token.chars, "'$', '_', unicode escape sequence, or any charater in categories Uppercase letter (Lu), Lowercase letter (Ll), Titlecase letter (Lt), Modifier letter (Lm), Other letter (Lo), Letter number (Nl), Non-spacing mark (Mn), Combining spacing mark (Mc), Decimal number (Nd), Connector punctuation (Pc)")
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 		}
 	}
 
@@ -668,7 +719,7 @@ func (lx *Lexer) fetchHexaEscape() error {
 			return err
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 
 		if !isCharValidHexa(char) {
 			return errInvalidChar(char, lx.pos, lx.token.chars, "hexadecimal digit")
@@ -688,7 +739,7 @@ func (lx *Lexer) fetchUnicodeEscape() error {
 		return err
 	}
 
-	lx.token.chars = append(lx.token.chars, char)
+	lx.token.addChar(char)
 	if char == '{' {
 		for {
 			char, _, err := lx.r.ReadRune()
@@ -700,7 +751,7 @@ func (lx *Lexer) fetchUnicodeEscape() error {
 				return err
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			if !isCharValidHexa(char) {
 				if char == '}' {
 					return nil
@@ -729,7 +780,7 @@ func (lx *Lexer) fetchUnicodeEscape() error {
 			return errInvalidChar(char, lx.pos, lx.token.chars, "hexadecimal digit")
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 	}
 
 	return nil
@@ -738,7 +789,7 @@ func (lx *Lexer) fetchUnicodeEscape() error {
 // fetchPunct is not exactly for fetching, more like creating the token
 func (lx *Lexer) fetchPunct(char rune) {
 	lx.token.t = TokenPunctuator
-	lx.token.chars = append(lx.token.chars, char)
+	lx.token.addChar(char)
 	lx.push()
 }
 
@@ -747,7 +798,7 @@ var undefinedChars = []rune{'n', 'd', 'e', 'f', 'i', 'n', 'e', 'd'}
 // fetchUndefined fetch undefined token
 func (lx *Lexer) fetchUndefined() error {
 	lx.token.t = TokenUndefined
-	lx.token.chars = append(lx.token.chars, 'u')
+	lx.token.addChar('u')
 
 	for _, c := range undefinedChars {
 		char, _, err := lx.r.ReadRune()
@@ -768,7 +819,7 @@ func (lx *Lexer) fetchUndefined() error {
 			return lx.fetchIdentifier(false, char)
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 	}
 
 	char, _, err := lx.r.ReadRune()
@@ -798,7 +849,7 @@ func (lx *Lexer) fetchUndefined() error {
 
 func (lx *Lexer) fetchString(firstChar rune) error {
 	lx.token.t = TokenString
-	lx.token.chars = append(lx.token.chars, firstChar)
+	lx.token.addChar(firstChar)
 
 LOOP:
 	for {
@@ -811,7 +862,7 @@ LOOP:
 			return err
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 		switch char {
 		// possible unicode escape or hexa escape
 		case '\\':
@@ -824,7 +875,7 @@ LOOP:
 				return err
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 
 			switch char {
 			// unicode escape
@@ -887,7 +938,7 @@ func (lx *Lexer) fetchHexaNumber() error {
 
 		if !isCharValidHexa(char) {
 			if isFirstChar {
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				return errInvalidChar(char, lx.pos, lx.token.chars, "hexadecimal digit")
 			}
 
@@ -900,7 +951,7 @@ func (lx *Lexer) fetchHexaNumber() error {
 				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 				return nil
 			} else if char == '_' {
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				// check if next character is valid hexadecimal digit
 				char, _, err := lx.r.ReadRune()
 				if err != nil {
@@ -911,7 +962,7 @@ func (lx *Lexer) fetchHexaNumber() error {
 					return err
 				}
 
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				if !isCharValidHexa(char) {
 					return errInvalidChar(char, lx.pos, lx.token.chars, "hexadecimal digit")
 				}
@@ -919,12 +970,12 @@ func (lx *Lexer) fetchHexaNumber() error {
 				continue
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			return errInvalidChar(char, lx.pos, lx.token.chars, "hexadecimal digit")
 		}
 
 		isFirstChar = false
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 	}
 }
 
@@ -947,12 +998,12 @@ func (lx *Lexer) fetchBinaryNumber() error {
 
 		if char != '0' && char != '1' {
 			if isFirstChar {
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				return errInvalidChar(char, lx.pos, lx.token.chars, "binary digit")
 			}
 
 			if char == '_' {
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				char, _, err := lx.r.ReadRune()
 				if err != nil {
 					if err == io.EOF {
@@ -962,7 +1013,7 @@ func (lx *Lexer) fetchBinaryNumber() error {
 					return err
 				}
 
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				if char != '0' && char != '1' {
 					return errInvalidChar(char, lx.pos, lx.token.chars, "binary digit")
 				}
@@ -979,12 +1030,12 @@ func (lx *Lexer) fetchBinaryNumber() error {
 				return nil
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			return errInvalidChar(char, lx.pos, lx.token.chars, "binary digit or '_'")
 		}
 
 		isFirstChar = false
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 	}
 }
 
@@ -992,7 +1043,7 @@ var infinityChars = []rune{'n', 'f', 'i', 'n', 'i', 't', 'y'}
 
 // fetchInfinity fetch number token with Infinity as value
 func (lx *Lexer) fetchInfinityNumber() error {
-	lx.token.chars = append(lx.token.chars, 'I')
+	lx.token.addChar('I')
 	for _, c := range infinityChars {
 		char, _, err := lx.r.ReadRune()
 		if err != nil {
@@ -1007,7 +1058,7 @@ func (lx *Lexer) fetchInfinityNumber() error {
 			return lx.fetchIdentifier(false, char)
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 	}
 
 	char, _, err := lx.r.ReadRune()
@@ -1044,7 +1095,7 @@ var nanChars = []rune{'a', 'N'}
 
 // fetchNanNumber fetch number token with NaN as value
 func (lx *Lexer) fetchNanNumber() error {
-	lx.token.chars = append(lx.token.chars, 'N')
+	lx.token.addChar('N')
 	for _, c := range nanChars {
 		char, _, err := lx.r.ReadRune()
 		if err != nil {
@@ -1059,7 +1110,7 @@ func (lx *Lexer) fetchNanNumber() error {
 			return lx.fetchIdentifier(false, char)
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 	}
 
 	char, _, err := lx.r.ReadRune()
@@ -1112,7 +1163,7 @@ func (lx *Lexer) fetchOctalNumber() error {
 
 		if !isCharValidOctal(char) {
 			if isFirstChar {
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				return errInvalidChar(char, lx.pos, lx.token.chars, "octal digit")
 			}
 
@@ -1124,7 +1175,7 @@ func (lx *Lexer) fetchOctalNumber() error {
 				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 				return nil
 			} else if char == '_' {
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				char, _, err := lx.r.ReadRune()
 				if err != nil {
 					if err == io.EOF {
@@ -1134,7 +1185,7 @@ func (lx *Lexer) fetchOctalNumber() error {
 					return err
 				}
 
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				if !isCharValidOctal(char) {
 					return errInvalidChar(char, lx.pos, lx.token.chars, "octal digit")
 				}
@@ -1142,11 +1193,11 @@ func (lx *Lexer) fetchOctalNumber() error {
 				continue
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			return errInvalidChar(char, lx.pos, lx.token.chars, "octal digit")
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 		isFirstChar = false
 	}
 }
@@ -1154,7 +1205,7 @@ func (lx *Lexer) fetchOctalNumber() error {
 // fetchDoubleNumber fetch double number (number with decimal point, example: .123, 0.123, 1.234)
 func (lx *Lexer) fetchDoubleNumber() error {
 	lx.token.tokenNumSubType = tokenNumDouble
-	lx.token.chars = append(lx.token.chars, '.')
+	lx.token.addChar('.')
 	isFirstChar := true
 	for {
 		char, _, err := lx.r.ReadRune()
@@ -1175,19 +1226,19 @@ func (lx *Lexer) fetchDoubleNumber() error {
 		if !unicode.IsDigit(char) {
 			if isFirstChar {
 				if char != 'e' && char != 'E' {
-					lx.token.chars = append(lx.token.chars, char)
+					lx.token.addChar(char)
 					return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit or exponent indicator")
 				}
 
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				return lx.fetchExponentNumber()
 			}
 
 			if char == 'e' || char == 'E' {
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				return lx.fetchExponentNumber()
 			} else if char == '_' {
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				char, _, err := lx.r.ReadRune()
 				if err != nil {
 					if err == io.EOF {
@@ -1197,7 +1248,7 @@ func (lx *Lexer) fetchDoubleNumber() error {
 					return err
 				}
 
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				if !unicode.IsDigit(char) {
 					return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
 				}
@@ -1212,11 +1263,11 @@ func (lx *Lexer) fetchDoubleNumber() error {
 				return nil
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit, separator, or exponent indicator")
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 		isFirstChar = false
 	}
 }
@@ -1236,7 +1287,7 @@ func (lx *Lexer) fetchExponentNumber() error {
 
 	if !unicode.IsDigit(char) {
 		if char == '-' || char == '+' {
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			char, _, err := lx.r.ReadRune()
 			if err != nil {
 				if err == io.EOF {
@@ -1247,17 +1298,17 @@ func (lx *Lexer) fetchExponentNumber() error {
 			}
 
 			if !unicode.IsDigit(char) {
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 		} else {
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			return errInvalidChar(char, lx.pos, lx.token.chars, "'+', '-', or decimal digit")
 		}
 	} else {
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 	}
 
 	for {
@@ -1273,7 +1324,7 @@ func (lx *Lexer) fetchExponentNumber() error {
 
 		if !unicode.IsDigit(char) {
 			if char == '_' {
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				char, _, err := lx.r.ReadRune()
 				if err != nil {
 					if err == io.EOF {
@@ -1283,7 +1334,7 @@ func (lx *Lexer) fetchExponentNumber() error {
 					return err
 				}
 
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				if !unicode.IsDigit(char) {
 					return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
 				}
@@ -1298,11 +1349,11 @@ func (lx *Lexer) fetchExponentNumber() error {
 				return nil
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit, separator, whitespace, or punctuator")
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 	}
 }
 
@@ -1313,7 +1364,7 @@ func (lx *Lexer) fetchNumber(beginChar rune) error {
 BEGIN_CHAR_CHECK:
 	switch beginChar {
 	case '-':
-		lx.token.chars = append(lx.token.chars, beginChar)
+		lx.token.addChar(beginChar)
 		for {
 			char, _, err := lx.r.ReadRune()
 			if err != nil {
@@ -1325,7 +1376,7 @@ BEGIN_CHAR_CHECK:
 			}
 
 			if char == '-' {
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				continue
 			}
 
@@ -1334,7 +1385,7 @@ BEGIN_CHAR_CHECK:
 		}
 
 	case '+':
-		lx.token.chars = append(lx.token.chars, beginChar)
+		lx.token.addChar(beginChar)
 		char, _, err := lx.r.ReadRune()
 		if err != nil {
 			if err == io.EOF {
@@ -1361,7 +1412,7 @@ BEGIN_CHAR_CHECK:
 
 	// possible hexadecimal, binary, octaldecimal, or double
 	case '0':
-		lx.token.chars = append(lx.token.chars, beginChar)
+		lx.token.addChar(beginChar)
 		char, _, err := lx.r.ReadRune()
 		if err != nil {
 			if err == io.EOF {
@@ -1375,22 +1426,22 @@ BEGIN_CHAR_CHECK:
 		switch char {
 		// hexadecimal
 		case 'x', 'X':
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			return lx.fetchHexaNumber()
 
 		// binary
 		case 'b', 'B':
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			return lx.fetchBinaryNumber()
 
 		// octaldecimal
 		case 'o', 'O':
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			return lx.fetchOctalNumber()
 
 		// exponent
 		case 'e', 'E':
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			return lx.fetchExponentNumber()
 
 		// double
@@ -1399,7 +1450,7 @@ BEGIN_CHAR_CHECK:
 
 		// separator
 		case '_':
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			char, _, err := lx.r.ReadRune()
 			if err != nil {
 				if err == io.EOF {
@@ -1409,14 +1460,14 @@ BEGIN_CHAR_CHECK:
 				return err
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			if !unicode.IsDigit(char) {
 				return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
 			}
 
 		default:
 			if unicode.IsDigit(char) {
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				break
 			} else if isCharPunct(char) {
 				defer lx.fetchPunct(char)
@@ -1427,16 +1478,16 @@ BEGIN_CHAR_CHECK:
 				return nil
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit, hexadecimal indicator, octaldecimal indicator, binary indicator, decimal point, exponent indicator, punctuator, whitespace, or separator")
 		}
 
 	// decimal digit
 	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
-		lx.token.chars = append(lx.token.chars, beginChar)
+		lx.token.addChar(beginChar)
 
 	default:
-		lx.token.chars = append(lx.token.chars, beginChar)
+		lx.token.addChar(beginChar)
 		return errInvalidChar(beginChar, lx.pos, lx.token.chars, "decimal digit, decimal point, 'I' (Infinity), or 'N' (NaN)")
 	}
 
@@ -1457,11 +1508,11 @@ BEGIN_CHAR_CHECK:
 				return lx.fetchDoubleNumber()
 
 			case 'e', 'E':
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				return lx.fetchExponentNumber()
 
 			case '_':
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				char, _, err := lx.r.ReadRune()
 				if err != nil {
 					if err == io.EOF {
@@ -1471,7 +1522,7 @@ BEGIN_CHAR_CHECK:
 					return err
 				}
 
-				lx.token.chars = append(lx.token.chars, char)
+				lx.token.addChar(char)
 				if !unicode.IsDigit(char) {
 					return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
 				}
@@ -1486,11 +1537,11 @@ BEGIN_CHAR_CHECK:
 				return nil
 			}
 
-			lx.token.chars = append(lx.token.chars, char)
+			lx.token.addChar(char)
 			return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit, decimal point, exponent indicator, punctuator, whitespace, or separator")
 		}
 
-		lx.token.chars = append(lx.token.chars, char)
+		lx.token.addChar(char)
 	}
 }
 
