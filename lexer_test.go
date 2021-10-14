@@ -971,8 +971,8 @@ func TestFetchDoubleNumberWithInvalidSeparator(t *testing.T) {
 }
 
 func TestFetchDoubleNumberWithExponent(t *testing.T) {
-	inputs := []string{"e123", "E123", "e-123", "e+123", "E-123", "E+123"}
-	expects := []string{".e123", ".E123", ".e-123", ".e+123", ".E-123", ".E+123"}
+	inputs := []string{"1e123", "1E123", "1e-123", "1e+123", "1E-123", "1E+123"}
+	expects := []string{".1e123", ".1E123", ".1e-123", ".1e+123", ".1E-123", ".1E+123"}
 	for i, input := range inputs {
 		lex := NewLexer(bytes.NewReader([]byte(input)))
 		if err := lex.fetchDoubleNumber(); err != nil {
@@ -1006,8 +1006,6 @@ func TestFetchNumber(t *testing.T) {
 		'-',
 		'+',
 		'-',
-		'.',
-		'.',
 		'1',
 		'1',
 		'0',
@@ -1038,8 +1036,6 @@ func TestFetchNumber(t *testing.T) {
 		"0.123",
 		"0.123",
 		"-0.123",
-		"e123",
-		"E123",
 		".e123",
 		".E123",
 		"x123",
@@ -1070,8 +1066,6 @@ func TestFetchNumber(t *testing.T) {
 		"-0.123",
 		"+0.123",
 		"--0.123",
-		".e123",
-		".E123",
 		"1.e123",
 		"1.E123",
 		"0x123",
@@ -1198,9 +1192,7 @@ func TestTokens(t *testing.T) {
 			0.123,
 			-0.123,
 			+0.123,
-			--0.123,
-			.e123,
-			.E123,
+			--0.123,			
 			1.e123,
 			1.E123,
 			0x123,
@@ -1240,7 +1232,7 @@ func TestTokens(t *testing.T) {
 
 		fmt.Println("type:", token.TypeString())
 		fmt.Println("string:", token.String())
-		fmt.Printf("position: %d:%d \n", token.Pos.Line(), token.Pos.Column())
+		fmt.Printf("position: %d:%d \n", token.StartPos.Line(), token.StartPos.Column())
 		fmt.Print("\n")
 	}
 }

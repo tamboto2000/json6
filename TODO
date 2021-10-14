@@ -1,1 +1,2 @@
 - Check error messages for each token fetcher
+- If Lexer.ignoreErr is true, when encounter invalid char, set reader to start from lastChar

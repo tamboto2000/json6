@@ -83,7 +83,8 @@ func (r *runeReader) UnreadRune() error {
 
 // Token contain characters that form the token, position in file, and its type
 type Token struct {
-	Pos             *Position
+	StartPos        *Position
+	EndPos          *Position
 	t               TokenType
 	tokenNumSubType uint
 	*runeReader
@@ -193,14 +194,14 @@ func NewLexer(r io.RuneReader) *Lexer {
 }
 
 func (lx *Lexer) push() {
-	lx.token.Pos = newPosition(lx.pos.Line(), lx.pos.Column())
+	lx.token.EndPos = newPosition(lx.pos.Line(), lx.pos.Column())
 	lx.tokens = append(lx.tokens, lx.token)
 	lx.rng += 1
 	lx.token = newToken()
 }
 
 func (lx *Lexer) pushWithPos(ln, cl int) {
-	lx.token.Pos = newPosition(ln, cl)
+	lx.token.EndPos = newPosition(ln, cl)
 	lx.tokens = append(lx.tokens, lx.token)
 	lx.rng += 1
 	lx.token = newToken()
@@ -228,6 +229,7 @@ func (lx *Lexer) FetchTokens() error {
 		switch char {
 		// comment
 		case '/':
+			lx.token.StartPos = newPosition(lx.pos.ln, lx.pos.col)
 			if err := lx.fetchComment(); err != nil {
 				if lx.ignoreErr {
 					lx.token = Token{}
@@ -241,6 +243,7 @@ func (lx *Lexer) FetchTokens() error {
 
 		// true boolean
 		case 't':
+			lx.token.StartPos = newPosition(lx.pos.ln, lx.pos.col)
 			if err := lx.fetchTrueBool(); err != nil {
 				if lx.ignoreErr {
 					lx.token = Token{}
@@ -254,6 +257,7 @@ func (lx *Lexer) FetchTokens() error {
 
 		// false boolean
 		case 'f':
+			lx.token.StartPos = newPosition(lx.pos.ln, lx.pos.col)
 			if err := lx.fetchFalseBool(); err != nil {
 				if lx.ignoreErr {
 					lx.token = Token{}
@@ -267,6 +271,7 @@ func (lx *Lexer) FetchTokens() error {
 
 		// null
 		case 'n':
+			lx.token.StartPos = newPosition(lx.pos.ln, lx.pos.col)
 			if err := lx.fetchNull(); err != nil {
 				if lx.ignoreErr {
 					lx.token = Token{}
@@ -280,6 +285,7 @@ func (lx *Lexer) FetchTokens() error {
 
 		// undefined
 		case 'u':
+			lx.token.StartPos = newPosition(lx.pos.ln, lx.pos.col)
 			if err := lx.fetchUndefined(); err != nil {
 				if lx.ignoreErr {
 					lx.token = Token{}
@@ -298,6 +304,7 @@ func (lx *Lexer) FetchTokens() error {
 
 		// string
 		case '"', '\'', '`':
+			lx.token.StartPos = newPosition(lx.pos.ln, lx.pos.col)
 			if err := lx.fetchString(char); err != nil {
 				if lx.ignoreErr {
 					lx.token = Token{}
@@ -311,6 +318,7 @@ func (lx *Lexer) FetchTokens() error {
 
 		// number
 		case '-', '+', '.', 'I', 'N':
+			lx.token.StartPos = newPosition(lx.pos.ln, lx.pos.col)
 			if err := lx.fetchNumber(char); err != nil {
 				if lx.ignoreErr {
 					lx.token = Token{}
@@ -323,6 +331,7 @@ func (lx *Lexer) FetchTokens() error {
 			continue
 
 		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			lx.token.StartPos = newPosition(lx.pos.ln, lx.pos.col)
 			if err := lx.fetchNumber(char); err != nil {
 				if lx.ignoreErr {
 					lx.token = Token{}
@@ -340,6 +349,7 @@ func (lx *Lexer) FetchTokens() error {
 				continue
 			}
 
+			lx.token.StartPos = newPosition(lx.pos.ln, lx.pos.col)
 			// if char is not whitespace, try to fetch identifier token
 			if err := lx.fetchIdentifier(true, char); err != nil {
 				if lx.ignoreErr {
@@ -467,13 +477,15 @@ func (lx *Lexer) fetchFalseBool() error {
 	if !isCharWhitespace(char) {
 		if isCharPunct(char) {
 			defer lx.fetchPunct(char)
+		} else if char == '/' {
+			lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+			return lx.fetchComment()
 		} else {
 			return lx.fetchIdentifier(false, char)
 		}
 	}
 
-	lx.push()
-
+	lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 	return nil
 }
 
@@ -520,12 +532,15 @@ func (lx *Lexer) fetchTrueBool() error {
 			defer lx.fetchPunct(char)
 			lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 			return nil
+		} else if char == '/' {
+			lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+			return lx.fetchComment()
 		} else {
 			return lx.fetchIdentifier(false, char)
 		}
 	}
 
-	lx.push()
+	lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 
 	return nil
 }
@@ -575,13 +590,15 @@ func (lx *Lexer) fetchNull() error {
 			defer lx.fetchPunct(char)
 			lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 			return nil
+		} else if char == '/' {
+			lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+			return lx.fetchComment()
 		} else {
 			return lx.fetchIdentifier(false, char)
 		}
 	}
 
-	lx.push()
-
+	lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 	return nil
 }
 
@@ -597,6 +614,10 @@ func (lx *Lexer) fetchIdentifier(isBegin bool, firstChar rune) error {
 
 	// punctuator
 	case '{', '}', '[', ']', ':', ',':
+		if isBegin {
+			return errInvalidChar(firstChar, lx.pos, lx.token.chars, "'$', '_', unicode escape sequence, or any charater in categories Uppercase letter (Lu), Lowercase letter (Ll), Titlecase letter (Lt), Modifier letter (Lm), Other letter (Lo), Letter number (Nl)")
+		}
+
 		defer lx.fetchPunct(firstChar)
 		lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 		return nil
@@ -614,14 +635,29 @@ func (lx *Lexer) fetchIdentifier(isBegin bool, firstChar rune) error {
 
 		lx.token.addChar(char)
 
-		if char != 'u' {
-			lx.token.addChar(char)
-			return errInvalidChar(char, lx.pos, lx.token.chars, "'u'")
+		switch char {
+		case 'u':
+			if err := lx.fetchUnicodeEscape(); err != nil {
+				return err
+			}
+
+		case 'x':
+			if err := lx.fetchHexaEscape(); err != nil {
+				return err
+			}
+
+		default:
+			return errInvalidChar(char, lx.pos, lx.token.chars, "'u' or 'x'")
 		}
 
-		if err := lx.fetchUnicodeEscape(); err != nil {
-			return err
+		// possible comment
+	case '/':
+		if isBegin {
+			return errInvalidChar(firstChar, lx.pos, lx.token.chars, "'$', '_', unicode escape sequence, or any charater in categories Uppercase letter (Lu), Lowercase letter (Ll), Titlecase letter (Lt), Modifier letter (Lm), Other letter (Lo), Letter number (Nl)")
 		}
+
+		lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+		return lx.fetchComment()
 
 	default:
 		if !unicode.In(firstChar, unicode.Lu, unicode.Ll, unicode.Lt, unicode.Lm, unicode.Lo, unicode.Nl) {
@@ -670,22 +706,36 @@ LOOP:
 			char, _, err := lx.r.ReadRune()
 			if err != nil {
 				if err == io.EOF {
-					return errUnexpectedEOF(lx.pos, "'u'")
+					return errUnexpectedEOF(lx.pos, "'u' or 'x'")
 				}
 
 				return err
 			}
 
-			if char != 'u' {
+			switch char {
+			case 'u':
 				lx.token.addChar(char)
-				return errInvalidChar(char, lx.pos, lx.token.chars, "'u'")
+				if err := lx.fetchUnicodeEscape(); err != nil {
+					return err
+				}
+
+				continue
+
+			case 'x':
+				lx.token.addChar(char)
+				if err := lx.fetchHexaEscape(); err != nil {
+					return err
+				}
+
+				continue
 			}
 
 			lx.token.addChar(char)
+			return errInvalidChar(char, lx.pos, lx.token.chars, "'u' or 'x'")
 
-			if err := lx.fetchUnicodeEscape(); err != nil {
-				return err
-			}
+		case '/':
+			lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+			return lx.fetchComment()
 
 		default:
 			if !unicode.In(char, unicode.Lu, unicode.Ll, unicode.Lt, unicode.Lm, unicode.Lo, unicode.Nl, unicode.Mn, unicode.Mc, unicode.Nd, unicode.Pc) {
@@ -788,6 +838,7 @@ func (lx *Lexer) fetchUnicodeEscape() error {
 
 // fetchPunct is not exactly for fetching, more like creating the token
 func (lx *Lexer) fetchPunct(char rune) {
+	lx.token.StartPos = newPosition(lx.pos.ln, lx.pos.col)
 	lx.token.t = TokenPunctuator
 	lx.token.addChar(char)
 	lx.push()
@@ -837,6 +888,9 @@ func (lx *Lexer) fetchUndefined() error {
 			defer lx.fetchPunct(char)
 			lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 			return nil
+		} else if char == '/' {
+			lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+			return lx.fetchComment()
 		} else {
 			return lx.fetchIdentifier(false, char)
 		}
@@ -968,6 +1022,9 @@ func (lx *Lexer) fetchHexaNumber() error {
 				}
 
 				continue
+			} else if char == '/' {
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return lx.fetchComment()
 			}
 
 			lx.token.addChar(char)
@@ -1028,6 +1085,9 @@ func (lx *Lexer) fetchBinaryNumber() error {
 				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 
 				return nil
+			} else if char == '/' {
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return lx.fetchComment()
 			}
 
 			lx.token.addChar(char)
@@ -1043,6 +1103,7 @@ var infinityChars = []rune{'n', 'f', 'i', 'n', 'i', 't', 'y'}
 
 // fetchInfinity fetch number token with Infinity as value
 func (lx *Lexer) fetchInfinityNumber() error {
+	lx.token.tokenNumSubType = tokenNumDouble
 	lx.token.addChar('I')
 	for _, c := range infinityChars {
 		char, _, err := lx.r.ReadRune()
@@ -1078,6 +1139,9 @@ func (lx *Lexer) fetchInfinityNumber() error {
 	} else if isCharWhitespace(char) {
 		lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 		return nil
+	} else if char == '/' {
+		lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+		return lx.fetchComment()
 	}
 
 	// if its turn out to be not a number, the nearest possibility is that this token
@@ -1095,6 +1159,7 @@ var nanChars = []rune{'a', 'N'}
 
 // fetchNanNumber fetch number token with NaN as value
 func (lx *Lexer) fetchNanNumber() error {
+	lx.token.tokenNumSubType = tokenNumDouble
 	lx.token.addChar('N')
 	for _, c := range nanChars {
 		char, _, err := lx.r.ReadRune()
@@ -1130,6 +1195,9 @@ func (lx *Lexer) fetchNanNumber() error {
 	} else if isCharWhitespace(char) {
 		lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 		return nil
+	} else if char == '/' {
+		lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+		return lx.fetchComment()
 	}
 
 	// if its turn out to be not a number, the nearest possibility is that this token
@@ -1191,6 +1259,9 @@ func (lx *Lexer) fetchOctalNumber() error {
 				}
 
 				continue
+			} else if char == '/' {
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return lx.fetchComment()
 			}
 
 			lx.token.addChar(char)
@@ -1212,7 +1283,17 @@ func (lx *Lexer) fetchDoubleNumber() error {
 		if err != nil {
 			if err == io.EOF {
 				if isFirstChar {
-					return errUnexpectedEOF(lx.pos, "decimal digit")
+					charLen := len(lx.token.chars)
+					if charLen-2 < 0 {
+						lx.token.addChar(char)
+						return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
+					}
+
+					char := lx.token.chars[charLen-2]
+					if !unicode.IsDigit(char) {
+						lx.token.addChar(char)
+						return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
+					}
 				}
 
 				lx.push()
@@ -1225,13 +1306,37 @@ func (lx *Lexer) fetchDoubleNumber() error {
 		// possible exponent number
 		if !unicode.IsDigit(char) {
 			if isFirstChar {
-				if char != 'e' && char != 'E' {
+				// check if before '.' is decimal digit or not
+				// if not, return invalid character error
+				charLen := len(lx.token.chars)
+				if charLen-2 < 0 {
 					lx.token.addChar(char)
-					return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit or exponent indicator")
+					return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
+				} else {
+					char := lx.token.chars[charLen-2]
+					if !unicode.IsDigit(char) {
+						lx.token.addChar(char)
+						return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
+					}
 				}
 
-				lx.token.addChar(char)
-				return lx.fetchExponentNumber()
+				if char == 'e' || char == 'E' {
+					lx.token.addChar(char)
+					return lx.fetchExponentNumber()
+				} else if isCharPunct(char) {
+					defer lx.fetchPunct(char)
+					lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+					return nil
+				} else if isCharWhitespace(char) {
+					defer lx.fetchPunct(char)
+					lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+					return nil
+				} else if char == '/' {
+					lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+					return lx.fetchComment()
+				}
+
+				return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit or exponent indicator")
 			}
 
 			if char == 'e' || char == 'E' {
@@ -1261,6 +1366,9 @@ func (lx *Lexer) fetchDoubleNumber() error {
 			} else if isCharWhitespace(char) {
 				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 				return nil
+			} else if char == '/' {
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return lx.fetchComment()
 			}
 
 			lx.token.addChar(char)
@@ -1347,6 +1455,9 @@ func (lx *Lexer) fetchExponentNumber() error {
 				defer lx.fetchPunct(char)
 				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 				return nil
+			} else if char == '/' {
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return lx.fetchComment()
 			}
 
 			lx.token.addChar(char)
@@ -1476,6 +1587,9 @@ BEGIN_CHAR_CHECK:
 			} else if isCharWhitespace(char) {
 				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 				return nil
+			} else if char == '/' {
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return lx.fetchComment()
 			}
 
 			lx.token.addChar(char)
@@ -1535,6 +1649,9 @@ BEGIN_CHAR_CHECK:
 			} else if isCharWhitespace(char) {
 				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
 				return nil
+			} else if char == '/' {
+				lx.pushWithPos(lx.pos.ln, lx.pos.col-1)
+				return lx.fetchComment()
 			}
 
 			lx.token.addChar(char)
