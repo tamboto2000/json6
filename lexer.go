@@ -1640,6 +1640,8 @@ BEGIN_CHAR_CHECK:
 				if !unicode.IsDigit(char) {
 					return errInvalidChar(char, lx.pos, lx.token.chars, "decimal digit")
 				}
+
+				continue
 			}
 
 			if isCharPunct(char) {

@@ -49,5 +49,17 @@ func errUnexpectedEndOfTokenStream(expects ...string) error {
 	return fmt.Errorf("unexpected end of token stream, expecting %s", expectStr)
 }
 
+func errMismatchType(src []rune, srcType, valType string) error {
+	return fmt.Errorf("can not decode %s (%s) to type %s", string(src), srcType, valType)
+}
+
+func errDecodeToNilPtr() error {
+	return errors.New("can not decode to nil pointer")
+}
+
+func errDecodeToNonPtr() error {
+	return errors.New("can not decode to non pointer")
+}
+
 var ErrNoMoreToken = errors.New("no more token")
 var ErrAlreadyAtBeginning = errors.New("already at beginning")
