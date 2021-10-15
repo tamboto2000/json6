@@ -112,15 +112,6 @@ func (t Token) TypeString() string {
 	return tokenTypeMap[t.t]
 }
 
-// lastChar fetch last pushed character in Token.chars
-func (t Token) lastChar() rune {
-	if len(t.chars) > 0 {
-		return t.chars[len(t.chars)-1]
-	}
-
-	return 0
-}
-
 // Position indicating token's position
 type Position struct {
 	ln  int
