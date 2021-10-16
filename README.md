@@ -47,8 +47,7 @@ func main() {
 
 	var profile Profile
 	if err := Unmarshal([]byte(src), &profile); err != nil {
-		t.Error(err)
-		return
+		panic(err.Error())
 	}
 
 	// do something
